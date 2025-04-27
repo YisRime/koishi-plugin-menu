@@ -2,20 +2,33 @@
   "name": "koishi-plugin-menu",
   "description": "可自定义的帮助菜单",
   "version": "0.0.1",
+  "contributors": [
+    "Yis_Rime <yis_rime@outlook.com>"
+  ],
+  "homepage": "https://github.com/YisRime/koishi-plugin-menu",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YisRime/koishi-plugin-menu.git"
+  },
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
     "lib",
     "dist"
   ],
-  "license": "MIT",
-  "scripts": {},
+  "license": "GPL-3.0",
   "keywords": [
     "chatbot",
     "koishi",
-    "plugin"
+    "plugin",
+    "menu",
+    "help",
+    "command",
+    "custom"
   ],
-  "devDependencies": {},
+  "devDependencies": {
+    "koishi-plugin-puppeteer": "^3.5.2"
+  },
   "peerDependencies": {
     "koishi": "^4.18.7"
   }
