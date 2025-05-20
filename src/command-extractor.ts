@@ -16,11 +16,21 @@ export interface CommandData {
   options: CommandOption[]
   examples: string[]
   subCommands?: CommandData[]
+  group?: string  // 新增：命令所属的分组
+  icon?: string   // 新增：命令的图标
 }
 
 export interface CategoryData {
   name: string
   commands: CommandData[]
+  groups?: CommandGroup[] // 新增：分组数据
+}
+
+// 新增：命令分组结构
+export interface CommandGroup {
+  name: string      // 分组名称
+  icon: string      // 分组图标
+  commands: CommandData[] // 分组内的命令
 }
 
 /**
@@ -28,6 +38,20 @@ export interface CategoryData {
  */
 export class CommandExtractor {
   private ctx: Context
+  private readonly DEFAULT_GROUPS = {
+    // 定义默认分组和其对应的图标
+    'system': 'settings',
+    'game': 'sports_esports',
+    'utility': 'build',
+    'admin': 'admin_panel_settings',
+    'user': 'person',
+    'media': 'perm_media',
+    'music': 'music_note',
+    'search': 'search',
+    'fun': 'mood',
+    'social': 'forum',
+    'other': 'more_horiz'
+  }
 
   /**
    * 创建命令提取器
@@ -56,7 +80,7 @@ export class CommandExtractor {
   }
 
   /**
-   * 提取所有命令分类数据
+   * 提取所有命令分类数据，并按分组组织
    * @param locale 语言代码
    * @returns 分类数据数组
    */
@@ -78,10 +102,118 @@ export class CommandExtractor {
     commandsData.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''))
     logger.info(`共提取 ${commandsData.length} 个可见命令`)
 
+    // 将命令按分组组织
+    const groups = this.organizeCommandsByGroups(commandsData)
+
     return [{
       name: "命令列表",
-      commands: commandsData
+      commands: commandsData,
+      groups: groups
     }]
+  }
+
+  /**
+   * 将命令按分组组织
+   * @param commands 命令数据列表
+   * @returns 分组后的数据
+   */
+  private organizeCommandsByGroups(commands: CommandData[]): CommandGroup[] {
+    // 创建一个映射来存储各个分组的命令
+    const groupMap = new Map<string, CommandData[]>()
+
+    // 首先检查每个命令是否已经定义了分组
+    commands.forEach(cmd => {
+      // 如果没有明确的分组，则根据命令名称分配一个
+      const group = cmd.group || this.determineCommandGroup(cmd.name)
+
+      if (!groupMap.has(group)) {
+        groupMap.set(group, [])
+      }
+      groupMap.get(group).push(cmd)
+    })
+
+    // 将映射转换为分组数组
+    const groups: CommandGroup[] = []
+    groupMap.forEach((commands, groupName) => {
+      groups.push({
+        name: this.formatGroupName(groupName),
+        icon: this.getGroupIcon(groupName),
+        commands: commands
+      })
+    })
+
+    // 按分组名称排序
+    groups.sort((a, b) => a.name.localeCompare(b.name))
+
+    return groups
+  }
+
+  /**
+   * 格式化分组名称
+   * @param groupName 原始分组名
+   * @returns 格式化后的分组名
+   */
+  private formatGroupName(groupName: string): string {
+    if (!groupName) return '其他'
+
+    // 将分组名称首字母大写
+    return groupName.charAt(0).toUpperCase() + groupName.slice(1)
+  }
+
+  /**
+   * 获取分组图标
+   * @param groupName 分组名称
+   * @returns 图标名称
+   */
+  private getGroupIcon(groupName: string): string {
+    const normalizedName = groupName.toLowerCase()
+
+    // 检查是否在默认分组图标中
+    if (normalizedName in this.DEFAULT_GROUPS) {
+      return this.DEFAULT_GROUPS[normalizedName]
+    }
+
+    // 根据分组名尝试匹配图标
+    switch (normalizedName) {
+      case 'bot': return 'smart_toy'
+      case 'chat': return 'chat'
+      case 'image': return 'image'
+      case 'video': return 'video_library'
+      case 'plugin': return 'extension'
+      case 'info': return 'info'
+      case 'help': return 'help'
+      case 'tools': return 'handyman'
+      case 'settings': return 'settings'
+      case 'commands': return 'terminal'
+      default: return 'widgets'
+    }
+  }
+
+  /**
+   * 根据命令名称确定所属分组
+   * @param commandName 命令名称
+   * @returns 分组名称
+   */
+  private determineCommandGroup(commandName: string): string {
+    if (!commandName) return 'other'
+
+    const name = commandName.toLowerCase()
+
+    // 根据命令名前缀或关键词确定分组
+    if (name.startsWith('admin') || name.includes('.admin')) return 'admin'
+    if (name.startsWith('user') || name.includes('.user') || name.includes('profile')) return 'user'
+    if (name.startsWith('game') || name.includes('.game') || name.includes('play')) return 'game'
+    if (name.startsWith('music') || name.includes('song') || name.includes('play.')) return 'music'
+    if (name.startsWith('image') || name.includes('pic') || name.includes('photo')) return 'media'
+    if (name.startsWith('video') || name.includes('movie')) return 'media'
+    if (name.startsWith('search') || name.includes('find')) return 'search'
+    if (name.startsWith('system') || name.includes('config') || name.includes('setting')) return 'system'
+    if (name.startsWith('util') || name.includes('tool')) return 'utility'
+    if (name.startsWith('fun') || name.includes('joke') || name.includes('meme')) return 'fun'
+    if (name.startsWith('social') || name.includes('chat') || name.includes('message')) return 'social'
+
+    // 默认分组
+    return 'other'
   }
 
   /**
@@ -149,6 +281,9 @@ export class CommandExtractor {
         ? (await Promise.all(command.children.map(subCmd => this.extractCommandInfo(subCmd, session)))).filter(Boolean)
         : undefined
 
+      // 尝试确定命令分组
+      const group = this.determineCommandGroup(command.name)
+
       // 构建命令数据对象
       return {
         name: command.name,
@@ -157,7 +292,8 @@ export class CommandExtractor {
         usage,
         options,
         examples,
-        subCommands: subCommands?.length > 0 ? subCommands : undefined
+        subCommands: subCommands?.length > 0 ? subCommands : undefined,
+        group: group  // 添加分组信息
       }
     } catch (error) {
       logger.error(`提取命令 ${command?.name || '未知命令'} 信息时出错:`, error)

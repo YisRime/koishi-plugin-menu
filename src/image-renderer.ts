@@ -1,6 +1,6 @@
 import { Context, Logger } from 'koishi'
 import {} from 'koishi-plugin-puppeteer'
-import { CommandData, CategoryData } from './command-extractor'
+import { CommandData, CategoryData, CommandGroup } from './command-extractor'
 import { StyleManager } from './style-manager'
 
 const logger = new Logger('menu:image-renderer')
@@ -8,6 +8,8 @@ const logger = new Logger('menu:image-renderer')
 export interface RenderConfig {
   title?: string
   description?: string
+  pageTitle?: string  // 新增：页面顶部标题
+  showGroups?: boolean // 新增：是否显示分组
 }
 
 /**
@@ -16,6 +18,61 @@ export interface RenderConfig {
 export class ImageRenderer {
   private ctx: Context
   private styleManager: StyleManager
+
+  // 命令类型图标映射
+  private readonly COMMAND_ICONS = {
+    default: 'code',              // 默认图标
+    help: 'help_outline',         // 帮助命令
+    admin: 'admin_panel_settings', // 管理命令
+    user: 'person',               // 用户相关
+    info: 'info',                 // 信息相关
+    settings: 'settings',         // 设置相关
+    search: 'search',             // 搜索相关
+    list: 'list',                 // 列表相关
+    create: 'add_circle',         // 创建相关
+    delete: 'delete',             // 删除相关
+    edit: 'edit',                 // 编辑相关
+    menu: 'menu_book',            // 菜单相关
+    plugin: 'extension',          // 插件相关
+    refresh: 'refresh',           // 刷新/更新相关
+    data: 'database',             // 数据相关
+    image: 'image',               // 图像相关
+    music: 'music_note',          // 音乐相关
+    video: 'video_library',       // 视频相关
+    game: 'sports_esports',       // 游戏相关
+    chat: 'chat',                 // 聊天相关
+    send: 'send',                 // 发送相关
+    download: 'download',         // 下载相关
+    upload: 'upload',             // 上传相关
+    time: 'schedule',             // 时间/计划相关
+  }
+
+  // 分组图标映射
+  private readonly GROUP_ICONS = {
+    default: 'widgets',           // 默认分组图标
+    system: 'settings',           // 系统分组
+    game: 'sports_esports',       // 游戏分组
+    utility: 'build',             // 实用工具分组
+    admin: 'admin_panel_settings', // 管理分组
+    user: 'person',               // 用户分组
+    media: 'perm_media',          // 媒体分组
+    music: 'music_note',          // 音乐分组
+    search: 'search',             // 搜索分组
+    fun: 'mood',                  // 娱乐分组
+    social: 'forum',              // 社交分组
+    other: 'more_horiz'           // 其他分组
+  }
+
+  // 其他UI元素图标
+  private readonly UI_ICONS = {
+    categoryHeader: 'menu_book',
+    options: 'tune',
+    examples: 'code',
+    subcommands: 'account_tree',
+    badge: 'label',
+    tag: 'local_offer',
+    pageTitle: 'help_center', // 新增：页面标题图标
+  }
 
   /**
    * 创建图像渲染器
@@ -54,6 +111,9 @@ export class ImageRenderer {
                 line-height: 1.4;
                 -webkit-font-smoothing: antialiased;
               }
+              * {
+                box-sizing: border-box;
+              }
             </style>
           </head>
           <body>${html}</body>
@@ -62,14 +122,14 @@ export class ImageRenderer {
 
       // 获取内容尺寸并调整视窗
       const dimensions = await page.evaluate(() => ({
-        width: Math.max(document.body.scrollWidth, document.documentElement.clientWidth),
+        width: Math.min(480, document.body.scrollWidth),
         height: document.body.scrollHeight
       }))
 
       await page.setViewport({
         width: dimensions.width,
         height: dimensions.height,
-        deviceScaleFactor: 2
+        deviceScaleFactor: 2 // 提高图像清晰度
       })
 
       // 等待图片加载
@@ -109,13 +169,79 @@ export class ImageRenderer {
       categories = [{ name: '命令列表', commands: [] }]
     }
 
-    const title = config.title || "命令帮助"
-    const content = `
-      ${this.renderHeader(title, config.description || "")}
-      ${categories.map(category => this.renderCategory(category)).join("")}
-    `
+    // 是否显示分组，默认为true
+    const showGroups = config.showGroups !== false
 
-    return this.wrapInContainer(content)
+    // 顶部页面标题
+    const pageTitleHTML = config.pageTitle ? `
+      <div class="page-title">
+        <i class="material-icons">${this.UI_ICONS.pageTitle}</i>
+        ${config.pageTitle}
+      </div>
+    ` : ''
+
+    let contentHTML = ''
+
+    if (showGroups && categories[0]?.groups?.length) {
+      // 渲染分组布局
+      contentHTML = this.renderGroupedCommands(categories[0].groups)
+    } else {
+      // 传统布局 - 单个卡片
+      contentHTML = `<div class="material-card commands-card">
+        <div class="category-header">
+          <i class="material-icons">${this.UI_ICONS.categoryHeader}</i>
+          ${config.title || "命令列表"}
+        </div>
+        <div class="commands-container">
+          ${this.renderCommandsGrid(categories[0]?.commands || [])}
+        </div>
+      </div>`
+    }
+
+    return this.wrapInContainer(pageTitleHTML + contentHTML)
+  }
+
+  /**
+   * 渲染分组命令
+   * @param groups 命令分组
+   * @returns HTML字符串
+   */
+  private renderGroupedCommands(groups: CommandGroup[]): string {
+    if (!groups?.length) return ''
+
+    return groups.map(group => `
+      <div class="command-group">
+        <div class="group-header">
+          <i class="material-icons">${this.getGroupIcon(group.icon)}</i>
+          ${group.name}
+        </div>
+        <div class="group-content">
+          ${group.commands.map(cmd => this.renderCommandCard(cmd)).join('')}
+        </div>
+      </div>
+    `).join('')
+  }
+
+  /**
+   * 获取分组图标
+   * @param iconName 图标名称
+   * @returns 图标名
+   */
+  private getGroupIcon(iconName: string): string {
+    if (!iconName) return this.GROUP_ICONS.default
+
+    // 尝试在分组图标映射中查找
+    if (iconName in this.GROUP_ICONS) {
+      return this.GROUP_ICONS[iconName]
+    }
+
+    // 尝试在命令图标映射中查找
+    if (iconName in this.COMMAND_ICONS) {
+      return this.COMMAND_ICONS[iconName]
+    }
+
+    // 返回默认图标
+    return this.GROUP_ICONS.default
   }
 
   /**
@@ -130,13 +256,15 @@ export class ImageRenderer {
       return this.wrapInContainer('<div>无法显示命令数据</div>')
     }
 
-    const title = config.title || `命令: ${commandData.displayName || commandData.name || ''}`
-    const content = `
-      ${this.renderHeader(title, '')}
-      <div class="category material-card">
-        ${this.renderCommand(commandData)}
+    const content = `<div class="material-card commands-card">
+      <div class="category-header">
+        <i class="material-icons">${this.getCommandIcon(commandData.name)}</i>
+        ${config.title || `命令: ${commandData.displayName || commandData.name || ''}`}
       </div>
-    `
+      <div class="commands-container">
+        ${this.renderCommandDetailed(commandData)}
+      </div>
+    </div>`
 
     return this.wrapInContainer(content)
   }
@@ -156,58 +284,211 @@ export class ImageRenderer {
   }
 
   /**
-   * 渲染标题部分
-   * @param title 标题
-   * @param description 描述
+   * 渲染命令网格
+   * @param commands 命令数据数组
    * @returns HTML字符串
    */
-  private renderHeader(title: string, description: string): string {
-    const style = this.styleManager.getStyle()
-    return `
-      <div class="ocr-header material-card">
-        <h1 style="color: ${style.titleColor}; text-align: center; margin-bottom: 8px;">${title}</h1>
-        ${description ? `<p style="text-align: center; margin-top: 0;">${description}</p>` : ""}
-      </div>
-    `
-  }
-
-  /**
-   * 渲染分类
-   * @param category 分类数据
-   * @returns HTML字符串
-   */
-  private renderCategory(category: CategoryData): string {
-    const style = this.styleManager.getStyle()
-    const commands = Array.isArray(category.commands) ? category.commands : []
+  private renderCommandsGrid(commands: CommandData[]): string {
+    // 将命令分类为常规命令和父命令
+    const parentCommands = commands.filter(cmd => cmd.subCommands?.length > 0);
+    const regularCommands = commands.filter(cmd => !cmd.subCommands?.length);
 
     return `
-      <div class="category material-card">
-        <h2 style="color: ${style.headerColor}; margin-bottom: 12px;">${category.name || '未命名分类'}</h2>
-        <div class="commands">
-          ${commands.map(command => this.renderCommand(command)).join("")}
+      ${regularCommands.length > 0 ? `
+        <div class="command-row">
+          ${regularCommands.map(cmd => this.renderCommandCard(cmd)).join("")}
         </div>
-      </div>
+      ` : ''}
+
+      ${parentCommands.map(cmd => this.renderParentCommand(cmd)).join("")}
     `
   }
 
   /**
-   * 渲染单个命令
+   * 获取命令图标名称
+   * @param commandName 命令名称
+   * @returns 图标名称
+   */
+  private getCommandIcon(commandName: string): string {
+    if (!commandName) return this.COMMAND_ICONS.default
+
+    // 尝试根据命令名称匹配对应图标
+    const nameLower = commandName.toLowerCase()
+
+    // 检查命令名称中是否包含关键词
+    for (const [key, icon] of Object.entries(this.COMMAND_ICONS)) {
+      if (key === 'default') continue
+      if (nameLower === key || nameLower.includes(key)) {
+        return icon
+      }
+    }
+
+    // 根据命令的首部分类
+    const parts = nameLower.split('.')
+    const mainCommand = parts[0]
+
+    switch (mainCommand) {
+      case 'help':
+      case 'h':
+        return this.COMMAND_ICONS.help
+      case 'admin':
+      case 'manage':
+      case 'op':
+        return this.COMMAND_ICONS.admin
+      case 'user':
+      case 'profile':
+        return this.COMMAND_ICONS.user
+      case 'set':
+      case 'config':
+      case 'settings':
+        return this.COMMAND_ICONS.settings
+      case 'info':
+      case 'about':
+      case 'status':
+        return this.COMMAND_ICONS.info
+      case 'list':
+      case 'ls':
+      case 'show':
+        return this.COMMAND_ICONS.list
+      case 'menu':
+        return this.COMMAND_ICONS.menu
+      case 'plugin':
+      case 'ext':
+      case 'extension':
+        return this.COMMAND_ICONS.plugin
+      case 'search':
+      case 'find':
+      case 'query':
+        return this.COMMAND_ICONS.search
+      // 添加更多命令匹配
+      default:
+        return this.COMMAND_ICONS.default
+    }
+  }
+
+  /**
+   * 渲染简洁的命令卡片
    * @param command 命令数据
    * @returns HTML字符串
    */
-  private renderCommand(command: CommandData): string {
-    const style = this.styleManager.getStyle()
-    const displayName = command.displayName ? String(command.displayName).replace(/\./g, " ") : ''
+  private renderCommandCard(command: CommandData): string {
+    const displayName = command.displayName ? String(command.displayName).replace(/\./g, " ") : command.name
+    const description = this.getCommandDescription(command.description)
+    const icon = this.getCommandIcon(command.name)
 
     return `
       <div class="command-item">
         <div class="command-header">
-          <span class="command-name" style="color: ${style.commandColor};">${displayName}</span>
+          <span class="command-name">
+            <i class="material-icons">${icon}</i>
+            ${displayName}
+          </span>
         </div>
-        ${command.description ? `<div class="command-description" style="color: ${style.descriptionColor};">${command.description}</div>` : ""}
-        ${command.usage ? `<div class="command-usage"><pre>${command.usage}</pre></div>` : ""}
+        ${description ? `<div class="command-description">${description}</div>` : ""}
+        ${command.options?.length ? `<div class="command-tag">
+          <i class="material-icons">${this.UI_ICONS.options}</i>
+          ${command.options.length} 个选项
+        </div>` : ""}
+      </div>
+    `
+  }
+
+  /**
+   * 渲染父命令及其子命令
+   * @param command 父命令数据
+   * @returns HTML字符串
+   */
+  private renderParentCommand(command: CommandData): string {
+    const displayName = command.displayName ? String(command.displayName).replace(/\./g, " ") : command.name
+    const description = this.getCommandDescription(command.description)
+    const hasSubCommands = command.subCommands?.length > 0
+    const icon = this.getCommandIcon(command.name)
+
+    return `
+      <div class="command-item">
+        <div class="command-header">
+          <span class="command-name">
+            <i class="material-icons">${icon}</i>
+            ${displayName}
+            ${hasSubCommands ? `<span class="command-badge">
+              <i class="material-icons">${this.UI_ICONS.badge}</i>
+              ${command.subCommands.length} 个子命令
+            </span>` : ''}
+          </span>
+        </div>
+        ${description ? `<div class="command-description">${description}</div>` : ""}
+        ${command.options?.length ? `
+          <div style="margin-top: 8px;">
+            ${command.options.map(opt => `<span class="command-tag">
+              <i class="material-icons">${this.UI_ICONS.tag}</i>
+              ${opt.name}
+            </span>`).join(' ')}
+          </div>
+        ` : ""}
+
+        ${hasSubCommands ? `
+          <div class="subcommands">
+            <div class="subcommands-title">
+              <i class="material-icons">${this.UI_ICONS.subcommands}</i>
+              子命令：
+            </div>
+            <div class="subcommand-list">
+              ${command.subCommands.map(sub => `
+                <div class="subcommand-item">
+                  <div class="subcommand-name">
+                    <i class="material-icons">${this.getCommandIcon(sub.name)}</i>
+                    ${sub.displayName.replace(/.*\./, '')}
+                  </div>
+                  ${this.getCommandDescription(sub.description) ?
+                    `<div class="subcommand-desc">${this.getCommandDescription(sub.description)}</div>` : ''}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `
+  }
+
+  /**
+   * 渲染详细的命令信息
+   * @param command 命令数据
+   * @returns HTML字符串
+   */
+  private renderCommandDetailed(command: CommandData): string {
+    const displayName = command.displayName ? String(command.displayName).replace(/\./g, " ") : command.name
+    const description = this.getCommandDescription(command.description)
+    const hasSubCommands = command.subCommands?.length > 0
+    const icon = this.getCommandIcon(command.name)
+
+    return `
+      <div class="commands-container">
+        <div class="command-name" style="font-size: 16px; margin-bottom: 8px;">
+          <i class="material-icons" style="font-size: 18px;">${icon}</i>
+          ${displayName}
+        </div>
+        ${description ? `<div class="command-description" style="font-size: 13px; margin-bottom: 10px;">${description}</div>` : ""}
+
+        ${command.usage ? `
+          <div class="command-usage">
+            <pre>${Array.isArray(command.usage) ? this.getCommandDescription(command.usage) : command.usage}</pre>
+          </div>
+        ` : ""}
+
         ${this.renderOptions(command.options)}
         ${this.renderExamples(command.examples)}
+
+        ${hasSubCommands ? `
+          <div class="subcommands">
+            <div class="subcommands-title">
+              <i class="material-icons">${this.UI_ICONS.subcommands}</i>
+              子命令：
+            </div>
+            <div class="subcommand-list">
+              ${command.subCommands.map(sub => this.renderCommandCard(sub)).join('')}
+            </div>
+          </div>
+        ` : ''}
       </div>
     `
   }
@@ -220,13 +501,23 @@ export class ImageRenderer {
   private renderOptions(options: any[]): string {
     if (!options?.length) return ""
 
-    const style = this.styleManager.getStyle()
     return `
-      <div class="command-options" style="color: ${style.optionColor};">
-        <div class="options-title">可用选项：</div>
-        <ul>
-          ${options.map(option => `<li><code>${option.syntax || ''}</code> ${option.description || ''}</li>`).join("")}
-        </ul>
+      <div class="command-options">
+        <div class="options-title">
+          <i class="material-icons">${this.UI_ICONS.options}</i>
+          可用选项：
+        </div>
+        <div class="options-grid">
+          ${options.map(option => `
+            <div class="option-item">
+              <code>${option.syntax || ''}</code>
+              ${option.description ?
+                `<div style="margin-top: 4px; color: ${this.styleManager.getStyle().descriptionColor};">
+                  ${this.getCommandDescription(option.description)}
+                </div>` : ''}
+            </div>
+          `).join("")}
+        </div>
       </div>
     `
   }
@@ -238,12 +529,44 @@ export class ImageRenderer {
    */
   private renderExamples(examples: string[]): string {
     if (!examples?.length) return ""
+
+    const examplesText = Array.isArray(examples) ? examples.join("\n") : examples;
+    if (!examplesText) return "";
+
     return `
       <div class="command-examples">
-        <div class="examples-title">示例：</div>
-        <pre>${examples.join("\n")}</pre>
+        <div class="examples-title">
+          <i class="material-icons">${this.UI_ICONS.examples}</i>
+          示例：
+        </div>
+        <pre>${examplesText}</pre>
       </div>
     `
+  }
+
+  /**
+   * 从复杂的描述结构中提取文本
+   * @param description 描述对象或字符串
+   * @returns 描述文本
+   */
+  private getCommandDescription(description: any): string {
+    if (!description) return '';
+
+    if (typeof description === 'string') return description;
+
+    if (Array.isArray(description)) {
+      return description.map(item => this.getCommandDescription(item)).join(' ');
+    }
+
+    if (description.type === 'text' && description.attrs?.content) {
+      return description.attrs.content;
+    }
+
+    if (description.children?.length) {
+      return description.children.map(child => this.getCommandDescription(child)).join(' ');
+    }
+
+    return '';
   }
 
   /**
@@ -253,7 +576,14 @@ export class ImageRenderer {
    * @returns 图片数据
    */
   public async renderCommandList(categories: CategoryData[], config: RenderConfig = {}): Promise<Buffer> {
-    return await this.renderToImage(this.generateCommandListHTML(categories, config))
+    // 添加默认页面标题
+    const finalConfig = {
+      pageTitle: "帮助菜单",
+      title: "命令列表",
+      showGroups: true,
+      ...config
+    }
+    return await this.renderToImage(this.generateCommandListHTML(categories, finalConfig))
   }
 
   /**
