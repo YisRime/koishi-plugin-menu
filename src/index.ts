@@ -10,7 +10,6 @@ export const logger = new Logger('menu')
 
 // 配置模式定义
 export interface Config {
-  locale: string
   darkMode: boolean
   customStyle: boolean
   prerender: boolean
@@ -19,7 +18,6 @@ export interface Config {
 }
 
 export const Config: Schema<Config> = Schema.object({
-  locale: Schema.string().description('使用的语言代码').default('zh-CN'),
   darkMode: Schema.boolean().description('使用暗色主题').default(false),
   customStyle: Schema.boolean().description('使用自定义样式').default(false),
   prerender: Schema.boolean().description('启动时预渲染所有命令图片').default(true),
@@ -34,21 +32,27 @@ class MenuPlugin {
   private commandExtractor: CommandExtractor
   private renderer: ImageRenderer
   private cacheManager: CacheManager
-  private categoriesData: CategoryData[] = null
+  private categoriesData: Map<string, CategoryData[]> = new Map()
   private refreshTimer: NodeJS.Timeout = null
   private ready: boolean = false
+  private defaultLocale: string
 
   constructor(ctx: Context, config: Config) {
     this.ctx = ctx
     this.config = config
 
+    // 使用 i18n 系统的默认语言，确保类型为字符串
+    const firstLocale = ctx.i18n.locales[0]
+    this.defaultLocale = typeof firstLocale === 'string' ? firstLocale : 'zh-CN'
+    logger.info(`使用默认语言: ${this.defaultLocale}`)
+
     // 初始化各组件
     this.styleManager = new StyleManager(config.darkMode, config.customStyle)
-    this.commandExtractor = new CommandExtractor(ctx, config.locale)
+    this.commandExtractor = new CommandExtractor(ctx)
     this.renderer = new ImageRenderer(ctx, this.styleManager)
     this.cacheManager = new CacheManager(
       ctx.baseDir,
-      config.locale,
+      this.defaultLocale,
       this.styleManager.getThemeIdentifier()
     )
 
@@ -91,7 +95,7 @@ class MenuPlugin {
       const intervalMs = this.config.refreshInterval * 60 * 60 * 1000 // 转换为毫秒
       this.refreshTimer = setInterval(() => {
         logger.info('刷新缓存...')
-        this.rerenderCache().catch(err =>
+        this.rerenderCache(this.defaultLocale).catch(err =>
           logger.error('刷新缓存失败:', err)
         )
       }, intervalMs)
@@ -100,23 +104,29 @@ class MenuPlugin {
   }
 
   private async prerenderCommands() {
-    logger.info('开始预渲染命令...')
+    logger.info(`开始预渲染默认语言(${this.defaultLocale})的命令...`)
 
     try {
       // 1. 加载或生成分类数据
-      this.categoriesData = await this.cacheManager.loadCommandsData()
+      const cachedData = await this.cacheManager.loadCommandsData()
 
-      if (!this.categoriesData) {
-        this.categoriesData = await this.commandExtractor.extractCategories()
+      if (!cachedData) {
+        const extractedData = await this.commandExtractor.extractCategories(this.defaultLocale)
+        this.categoriesData.set(this.defaultLocale, extractedData)
+
         if (this.config.cacheEnabled) {
-          await this.cacheManager.saveCommandsData(this.categoriesData)
+          await this.cacheManager.saveCommandsData(extractedData)
         }
+      } else {
+        this.categoriesData.set(this.defaultLocale, cachedData)
       }
 
       // 2. 渲染命令列表
       if (this.config.cacheEnabled && !this.cacheManager.hasCommandListCache()) {
         logger.info('预渲染命令列表')
-        const listImage = await this.renderer.renderCommandList(this.categoriesData)
+        const listImage = await this.renderer.renderCommandList(
+          this.categoriesData.get(this.defaultLocale)
+        )
         await this.cacheManager.saveImageCache(
           this.cacheManager.getCommandListPath(),
           listImage
@@ -126,7 +136,7 @@ class MenuPlugin {
       // 3. 渲染各个命令
       if (this.config.cacheEnabled) {
         logger.info('预渲染单个命令...')
-        await this.prerenderIndividualCommands()
+        await this.prerenderIndividualCommands(this.defaultLocale)
       }
 
       logger.info('命令预渲染完成')
@@ -137,7 +147,7 @@ class MenuPlugin {
     }
   }
 
-  private async prerenderIndividualCommands() {
+  private async prerenderIndividualCommands(locale: string) {
     // 收集所有命令
     const allCommands = this.commandExtractor.collectAllCommands()
     const total = allCommands.length
@@ -145,6 +155,9 @@ class MenuPlugin {
     let cached = 0
     let rendered = 0
     let failed = 0
+
+    // 为当前语言设置缓存管理器
+    this.cacheManager.updateConfig(locale, this.styleManager.getThemeIdentifier())
 
     // 处理每个命令
     for (const commandName of allCommands) {
@@ -158,7 +171,7 @@ class MenuPlugin {
         }
 
         // 提取命令数据
-        const commandData = await this.commandExtractor.getCommandData(commandName)
+        const commandData = await this.commandExtractor.getCommandData(commandName, locale)
         if (!commandData) {
           failed++
           continue
@@ -187,21 +200,26 @@ class MenuPlugin {
     }
   }
 
-  private async rerenderCache() {
-    logger.info('重新渲染缓存...')
+  private async rerenderCache(locale: string) {
+    logger.info(`重新渲染缓存(语言: ${locale})...`)
+
+    // 更新缓存管理器的语言设置
+    this.cacheManager.updateConfig(locale, this.styleManager.getThemeIdentifier())
 
     // 清除旧缓存
     await this.cacheManager.clearAllCache()
 
     // 重新提取命令数据
-    this.categoriesData = await this.commandExtractor.extractCategories()
+    const extractedData = await this.commandExtractor.extractCategories(locale)
+    this.categoriesData.set(locale, extractedData)
+
     if (this.config.cacheEnabled) {
-      await this.cacheManager.saveCommandsData(this.categoriesData)
+      await this.cacheManager.saveCommandsData(extractedData)
     }
 
     // 渲染命令列表
     logger.info('重新渲染命令列表')
-    const listImage = await this.renderer.renderCommandList(this.categoriesData)
+    const listImage = await this.renderer.renderCommandList(extractedData)
     await this.cacheManager.saveImageCache(
       this.cacheManager.getCommandListPath(),
       listImage
@@ -215,13 +233,16 @@ class MenuPlugin {
     this.ctx.command('menu [command:string]', '显示命令帮助')
       .userFields(['authority'])
       .option('refresh', '-r 刷新命令缓存')
-      .action(async ({ options, args }) => {
+      .action(async ({ session, options, args }) => {
         if (!this.ready) return '插件正在初始化，请稍后再试...'
+
+        // 获取用户的语言设置，使用 locales 数组
+        const userLocale = session.locales?.[0] || this.defaultLocale
 
         // 处理刷新选项
         if (options.refresh) {
           logger.info('手动刷新缓存')
-          await this.rerenderCache().catch(err => {
+          await this.rerenderCache(userLocale).catch(err => {
             logger.error('手动刷新缓存失败', err)
             return '刷新缓存时发生错误'
           })
@@ -230,7 +251,7 @@ class MenuPlugin {
 
         // 显示命令列表或特定命令
         const commandName = args[0]
-        return await this.handleMenuCommand(commandName)
+        return await this.handleMenuCommand(session, commandName)
       })
 
     // 管理命令：管理菜单插件
@@ -238,15 +259,18 @@ class MenuPlugin {
       .userFields(['authority'])
       .option('clear', '-c 清除所有缓存')
       .option('theme', '-t <theme> 切换主题 (light/dark/custom)')
-      .option('locale', '-l <locale> 切换语言')
-      .action(async ({ options }) => {
+      .action(async ({ session, options }) => {
         if (!this.ready) return '插件正在初始化，请稍后再试...'
 
         const result = []
+        // 获取用户语言设置，使用 locales 数组
+        const userLocale = session.locales?.[0] || this.defaultLocale
 
         try {
           // 处理清除缓存
           if (options.clear) {
+            // 更新缓存管理器的语言设置为用户当前语言
+            this.cacheManager.updateConfig(userLocale, this.styleManager.getThemeIdentifier())
             await this.cacheManager.clearAllCache()
             result.push('已清除所有缓存')
           }
@@ -265,7 +289,7 @@ class MenuPlugin {
 
               // 更新样式和缓存
               this.styleManager.updateStyle(darkMode, customStyle)
-              this.cacheManager.updateConfig(this.config.locale, this.styleManager.getThemeIdentifier())
+              this.cacheManager.updateConfig(userLocale, this.styleManager.getThemeIdentifier())
 
               result.push(`已切换到${theme === 'custom' ? '自定义' : (theme === 'dark' ? '暗色' : '亮色')}主题`)
             } else {
@@ -273,23 +297,9 @@ class MenuPlugin {
             }
           }
 
-          // 处理语言切换
-          if (options.locale) {
-            const locale = options.locale
-
-            // 更新配置
-            this.config.locale = locale
-
-            // 更新提取器和缓存
-            this.commandExtractor.setLocale(locale)
-            this.cacheManager.updateConfig(locale, this.styleManager.getThemeIdentifier())
-
-            result.push(`已切换语言为: ${locale}`)
-          }
-
           // 如果有改变配置，重新预渲染
-          if (options.theme || options.locale) {
-            await this.prerenderCommands()
+          if (options.theme) {
+            await this.prerenderIndividualCommands(userLocale)
           }
 
           return result.length ? result.join('\n') : '没有执行任何操作'
@@ -300,14 +310,17 @@ class MenuPlugin {
       })
   }
 
-  private async handleMenuCommand(commandName?: string): Promise<Element | string> {
+  private async handleMenuCommand(session, commandName?: string): Promise<Element | string> {
+    // 获取用户的语言，使用 locales 数组
+    const userLocale = session.locales?.[0] || this.defaultLocale
+
     try {
       if (!commandName) {
         // 显示命令列表
-        return await this.getCommandListImage()
+        return await this.getCommandListImage(userLocale)
       } else {
         // 显示特定命令
-        return await this.getCommandImage(commandName)
+        return await this.getCommandImage(commandName, userLocale)
       }
     } catch (error) {
       logger.error('处理菜单命令失败', error)
@@ -315,7 +328,10 @@ class MenuPlugin {
     }
   }
 
-  private async getCommandListImage(): Promise<Element> {
+  private async getCommandListImage(locale: string): Promise<Element> {
+    // 更新缓存管理器设置为用户当前语言
+    this.cacheManager.updateConfig(locale, this.styleManager.getThemeIdentifier())
+
     let image: Buffer = null
 
     // 尝试从缓存获取
@@ -326,16 +342,17 @@ class MenuPlugin {
     // 如果缓存不存在或者无效，重新渲染
     if (!image) {
       // 确保有分类数据
-      if (!this.categoriesData) {
-        this.categoriesData = await this.commandExtractor.extractCategories()
+      if (!this.categoriesData.has(locale)) {
+        const extractedData = await this.commandExtractor.extractCategories(locale)
+        this.categoriesData.set(locale, extractedData)
 
         if (this.config.cacheEnabled) {
-          await this.cacheManager.saveCommandsData(this.categoriesData)
+          await this.cacheManager.saveCommandsData(extractedData)
         }
       }
 
       // 渲染图片
-      image = await this.renderer.renderCommandList(this.categoriesData)
+      image = await this.renderer.renderCommandList(this.categoriesData.get(locale))
 
       // 缓存图片
       if (this.config.cacheEnabled) {
@@ -349,7 +366,10 @@ class MenuPlugin {
     return h.image(image, 'image/png')
   }
 
-  private async getCommandImage(commandName: string): Promise<Element> {
+  private async getCommandImage(commandName: string, locale: string): Promise<Element> {
+    // 更新缓存管理器设置为用户当前语言
+    this.cacheManager.updateConfig(locale, this.styleManager.getThemeIdentifier())
+
     let image: Buffer = null
 
     // 尝试从缓存获取
@@ -362,7 +382,7 @@ class MenuPlugin {
     // 如果缓存不存在或者无效，重新渲染
     if (!image) {
       // 获取命令数据
-      const commandData = await this.commandExtractor.getCommandData(commandName)
+      const commandData = await this.commandExtractor.getCommandData(commandName, locale)
 
       if (!commandData) {
         throw new Error(`命令 ${commandName} 不存在或无法访问`)

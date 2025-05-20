@@ -28,24 +28,24 @@ export interface CategoryData {
  */
 export class CommandExtractor {
   private ctx: Context
-  private locale: string
 
-  constructor(ctx: Context, locale: string = 'zh-CN') {
+  constructor(ctx: Context) {
     this.ctx = ctx
-    this.locale = locale
-    logger.info(`命令提取器初始化，使用语言: ${locale}`)
+    logger.info('命令提取器初始化完成')
   }
 
   /**
    * 创建命令渲染会话
+   * @param {string} locale 语言代码
    * @returns {any} 会话对象
    */
-  private createSession(): any {
+  private createSession(locale: string): any {
     const session: any = {
       app: this.ctx.app,
       user: { authority: 4 }, // 使用高权限以查看所有命令
-      text: (path, params) => this.ctx.i18n.render([this.locale], Array.isArray(path) ? path : [path], params),
+      text: (path, params) => this.ctx.i18n.render([locale], Array.isArray(path) ? path : [path], params),
       isDirect: true,
+      locales: [locale], // 使用正确的 locales 属性
     }
     session.resolve = (val) => typeof val === 'function' ? val(session) : val
     return session
@@ -53,12 +53,13 @@ export class CommandExtractor {
 
   /**
    * 提取所有命令分类数据
+   * @param {string} locale 语言代码
    * @returns {Promise<CategoryData[]>} 分类数据数组
    */
-  public async extractCategories(): Promise<CategoryData[]> {
-    const session = this.createSession()
+  public async extractCategories(locale: string): Promise<CategoryData[]> {
+    const session = this.createSession(locale)
     const commander = this.ctx.$commander
-    logger.info(`开始提取命令列表，共有 ${commander._commandList.length} 个命令`)
+    logger.info(`开始提取命令列表(语言: ${locale})，共有 ${commander._commandList.length} 个命令`)
 
     // 只获取顶级命令（没有父命令的命令）
     const rootCommands = commander._commandList.filter((cmd: any) => !cmd.parent)
@@ -88,10 +89,6 @@ export class CommandExtractor {
    * @returns {Promise<CommandData|null>} 命令数据
    */
   public async extractCommandInfo(command: any, session?: any): Promise<CommandData|null> {
-    if (!session) {
-      session = this.createSession()
-    }
-
     if (!command?.name) {
       logger.debug('跳过无效命令')
       return null
@@ -179,9 +176,10 @@ export class CommandExtractor {
   /**
    * 获取特定命令的数据
    * @param {string} commandName - 命令名称
+   * @param {string} locale - 语言代码
    * @returns {Promise<CommandData|null>} 命令数据
    */
-  public async getCommandData(commandName: string): Promise<CommandData|null> {
+  public async getCommandData(commandName: string, locale: string): Promise<CommandData|null> {
     if (!commandName) return null
 
     const command = this.getCommandObject(commandName)
@@ -190,7 +188,8 @@ export class CommandExtractor {
       return null
     }
 
-    return await this.extractCommandInfo(command)
+    const session = this.createSession(locale)
+    return await this.extractCommandInfo(command, session)
   }
 
   /**
@@ -268,14 +267,5 @@ export class CommandExtractor {
     const result = Array.from(processedCommands)
     logger.info(`收集到 ${result.length} 个命令和子命令`)
     return result
-  }
-
-  /**
-   * 更新语言设置
-   * @param {string} locale - 新语言代码
-   */
-  public setLocale(locale: string): void {
-    this.locale = locale
-    logger.info(`已更新语言设置: ${locale}`)
   }
 }
