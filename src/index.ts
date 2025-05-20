@@ -1,9 +1,11 @@
-import { Context, Schema, Service, h, Logger } from 'koishi'
-import { resolve } from 'path'
+import { Context, Schema, Logger, h } from 'koishi'
+import * as crypto from 'crypto'
+import { existsSync } from 'fs'
 import { promises as fs } from 'fs'
 import * as renderer from './render'
-import { defaultStyle, darkStyle } from './styles'
+import { defaultStyle, darkStyle, customStyle } from './styles'
 import { loadCommands, extractCommandInfo } from './loader'
+import { CacheManager } from './cache'
 
 export const name = 'menu'
 export const inject = ['puppeteer']
@@ -11,163 +13,134 @@ export const inject = ['puppeteer']
 // 创建logger
 const logger = new Logger('menu')
 
+/**
+ * 配置对象
+ * @typedef {Object} Config
+ * @property {string} title - 帮助菜单标题
+ * @property {string} description - 帮助菜单描述
+ * @property {string} locale - 使用的语言代码
+ * @property {boolean} darkMode - 是否使用暗色主题
+ * @property {string} dataDir - 数据存储目录
+ * @property {boolean} useCache - 是否使用本地缓存
+ * @property {number} cacheExpiry - 缓存过期时间(分钟，0表示永不过期)
+ * @property {boolean} prerender - 是否启动时预渲染所有命令图片
+ * @property {boolean} customStyle - 是否使用自定义样式
+ */
 export interface Config {
   title: string
   description: string
   locale: string
-  renderOnStartup: boolean
-  cacheTime: number
   darkMode: boolean
   dataDir: string
+  useCache: boolean
+  cacheExpiry: number
+  prerender: boolean
+  customStyle: boolean
 }
 
 export const Config: Schema<Config> = Schema.object({
   title: Schema.string().description('帮助菜单标题').default('命令帮助'),
   description: Schema.string().description('帮助菜单描述').default(''),
   locale: Schema.string().description('使用的语言代码').default('zh-CN'),
-  renderOnStartup: Schema.boolean().description('启动时预渲染帮助').default(true),
-  cacheTime: Schema.number().description('帮助缓存有效时间(毫秒)，0表示始终使用缓存').default(3600000), // 默认1小时
   darkMode: Schema.boolean().description('使用暗色主题').default(false),
-  dataDir: Schema.string().description('数据存储目录').default('data/menu')
+  dataDir: Schema.string().description('数据存储目录').default('data/menu'),
+  useCache: Schema.boolean().description('使用本地缓存').default(true),
+  cacheExpiry: Schema.number().description('缓存过期时间(分钟，0表示永不过期)').default(60),
+  prerender: Schema.boolean().description('启动时预渲染所有命令图片').default(true),
+  customStyle: Schema.boolean().description('使用自定义样式(而非暗/亮色主题)').default(false)
 })
 
+/**
+ * 应用插件
+ * @param {Context} ctx - Koishi上下文
+ * @param {Config} config - 配置对象
+ */
 export function apply(ctx: Context, config: Config) {
-  // 目录设置
-  const baseDir = resolve(ctx.baseDir, config.dataDir)
-  const stylesDir = resolve(baseDir, 'styles')
-  const imagesDir = resolve(baseDir, 'images')
-  const commandsDir = resolve(baseDir, 'commands')
+  // 缓存管理器
+  let cacheManager: CacheManager
 
-  // 确保目录存在
-  async function ensureDirectories() {
-    try {
-      await fs.mkdir(baseDir, { recursive: true })
-      await fs.mkdir(stylesDir, { recursive: true })
-      await fs.mkdir(imagesDir, { recursive: true })
-      await fs.mkdir(commandsDir, { recursive: true })
-      logger.info(`确保目录存在: ${baseDir}`)
-    } catch (err) {
-      logger.error('创建目录失败', err)
-      throw err
-    }
+  /**
+   * 获取样式配置
+   * @returns {Object} - 样式对象
+   */
+  function getStyleConfig() {
+    if (config.customStyle) return customStyle
+    return config.darkMode ? darkStyle : defaultStyle
   }
 
-  // 保存样式到文件
-  async function saveStyles() {
-    try {
-      const defaultStylePath = resolve(stylesDir, 'default.json')
-      const darkStylePath = resolve(stylesDir, 'dark.json')
-
-      await fs.writeFile(defaultStylePath, JSON.stringify(defaultStyle, null, 2))
-      await fs.writeFile(darkStylePath, JSON.stringify(darkStyle, null, 2))
-
-      logger.info('样式文件已保存')
-    } catch (err) {
-      logger.error('保存样式文件失败', err)
-    }
-  }
-
-  // 保存菜单缓存
-  async function saveMenuCache(image: Buffer, type: string, locale: string, timestamp: number) {
-    try {
-      const filename = resolve(imagesDir, `${type}-${locale}.png`)
-      const infoFilename = resolve(imagesDir, `${type}-${locale}.json`)
-
-      await fs.writeFile(filename, image)
-      await fs.writeFile(infoFilename, JSON.stringify({ timestamp }))
-
-      logger.info(`菜单图片已保存: ${filename}`)
-    } catch (err) {
-      logger.error('保存菜单缓存失败', err)
-    }
-  }
-
-  // 加载菜单缓存
-  async function loadMenuCache(type: string, locale: string) {
-    try {
-      const filename = resolve(imagesDir, `${type}-${locale}.png`)
-      const infoFilename = resolve(imagesDir, `${type}-${locale}.json`)
-
-      try {
-        await fs.access(filename)
-        await fs.access(infoFilename)
-      } catch {
-        logger.info(`菜单缓存文件不存在: ${filename}`)
-        return null
-      }
-
-      const image = await fs.readFile(filename)
-      const infoData = await fs.readFile(infoFilename, 'utf8')
-      const info = JSON.parse(infoData)
-
-      logger.info(`从文件加载菜单缓存: ${filename}`)
-      return { image, timestamp: info.timestamp }
-    } catch (err) {
-      logger.error('读取菜单缓存失败', err)
-      return null
-    }
-  }
-
-  // 保存命令信息
-  async function saveCommandInfo(commandsData: any, locale: string) {
-    try {
-      const filename = resolve(commandsDir, `commands-${locale}.json`)
-      await fs.writeFile(filename, JSON.stringify(commandsData, null, 2))
-      logger.info(`命令信息已保存: ${filename}`)
-    } catch (err) {
-      logger.error('保存命令信息失败', err)
-    }
-  }
-
-  // 加载命令信息
-  async function loadCommandInfo(locale: string) {
-    try {
-      const filename = resolve(commandsDir, `commands-${locale}.json`)
-      try {
-        await fs.access(filename)
-      } catch {
-        logger.info(`命令信息文件不存在: ${filename}`)
-        return null
-      }
-
-      const data = await fs.readFile(filename, 'utf8')
-      return JSON.parse(data)
-    } catch (err) {
-      logger.error('读取命令信息失败', err)
-      return null
-    }
-  }
-
-  // 创建渲染会话
-  async function createRenderSession(locale: string) {
-    const session = {
+  /**
+   * 创建渲染会话
+   * @param {string} locale - 语言代码
+   * @returns {Object} - 渲染会话对象
+   */
+  function createRenderSession(locale: string) {
+    const session: any = {
       app: ctx.app,
       user: { authority: 4 }, // 使用高权限以查看所有命令
-      resolve: (val) => typeof val === 'function' ? val(session) : val,
       text: (path, params) => ctx.i18n.render([locale], Array.isArray(path) ? path : [path], params),
       isDirect: true,
     }
+    session.resolve = (val) => typeof val === 'function' ? val(session) : val
     return session
   }
 
-  // 渲染命令帮助
-  async function renderCommandHelpImage(commandName: string, forceRender: boolean = false, localeOverride?: string) {
-    const locale = localeOverride || config.locale || 'zh-CN'
-    const now = Date.now()
+  /**
+   * 获取命令列表哈希值
+   * @returns {Promise<string>} - 命令列表的哈希值
+   */
+  async function getCommandsHash() {
+    const session = createRenderSession(config.locale)
+    const commandsData = await loadCommands(ctx, session)
+    const hash = crypto.createHash('md5')
+    hash.update(JSON.stringify(commandsData))
+    return hash.digest('hex')
+  }
 
-    // 检查缓存
-    if (!forceRender) {
-      const fileCache = await loadMenuCache(`command-${commandName.replace(/\./g, '-')}`, locale)
-      if (fileCache && (config.cacheTime === 0 || now - fileCache.timestamp < config.cacheTime)) {
-        logger.info(`使用缓存的命令帮助 (${commandName})`)
-        return fileCache.image
-      }
-    }
-
+  /**
+   * 获取命令对象
+   * @param {string} commandName - 命令名称
+   * @returns {Object|null} - 命令对象
+   */
+  function getCommand(commandName: string) {
     try {
-      const session = await createRenderSession(locale)
-      const commander = ctx.$commander
-      const command = commander.get(commandName)
+      // 处理子命令格式 (如 "info.user")
+      if (commandName.includes('.')) {
+        const parts = commandName.split('.')
+        let currentCmd = ctx.$commander.get(parts[0])
+        if (!currentCmd) return null
+
+        // 遍历子命令路径
+        for (let i = 1; i < parts.length; i++) {
+          let found = false
+          for (const child of currentCmd.children) {
+            if (child.name === parts.slice(0, i+1).join('.')) {
+              currentCmd = child
+              found = true
+              break
+            }
+          }
+          if (!found) return null
+        }
+        return currentCmd
+      } else {
+        // 直接获取顶级命令
+        return ctx.$commander.get(commandName)
+      }
+    } catch (error) {
+      logger.debug(`查找命令出错: ${commandName}`, error)
+      return null
+    }
+  }
+
+  /**
+   * 渲染并缓存单个命令帮助
+   * @param {string} commandName - 命令名称
+   * @returns {Promise<Buffer>} - 图片缓冲区
+   */
+  async function renderAndCacheCommandHelp(commandName: string) {
+    try {
+      const session = createRenderSession(config.locale)
+      const command = getCommand(commandName)
 
       if (!command) {
         throw new Error(`命令 ${commandName} 不存在`)
@@ -178,119 +151,210 @@ export function apply(ctx: Context, config: Config) {
         throw new Error(`无法获取命令 ${commandName} 的信息`)
       }
 
-      const style = config.darkMode ? darkStyle : defaultStyle
-
-      logger.info(`渲染命令帮助: ${commandName}`)
+      logger.debug(`渲染命令帮助: ${commandName}`)
       const image = await renderer.renderCommandHelp(ctx, commandData, {
         title: `命令: ${commandName}`,
-        style,
-        locale
+        style: getStyleConfig()
       })
 
-      await saveMenuCache(image, `command-${commandName.replace(/\./g, '-')}`, locale, now)
+      // 保存到文件
+      const cachePath = cacheManager.getCommandPath(commandName)
+      await fs.writeFile(cachePath, image)
       return image
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error(`渲染命令帮助失败: ${commandName}`, error)
-      throw new Error(`渲染命令帮助失败: ${errorMessage}`)
+      throw new Error(`渲染失败: ${error.message || String(error)}`)
     }
   }
 
-  // 渲染命令列表
-  async function renderCommandListImage(forceRender: boolean = false, localeOverride?: string) {
-    const locale = localeOverride || config.locale || 'zh-CN'
-    const now = Date.now()
-
-    // 检查缓存
-    if (!forceRender) {
-      const fileCache = await loadMenuCache('command-list', locale)
-      if (fileCache && (config.cacheTime === 0 || now - fileCache.timestamp < config.cacheTime)) {
-        logger.info(`使用缓存的命令列表`)
-        return fileCache.image
-      }
-    }
-
+  /**
+   * 渲染并缓存命令列表
+   * @returns {Promise<Buffer>} - 图片缓冲区
+   */
+  async function renderAndCacheCommandList() {
     try {
-      const session = await createRenderSession(locale)
-      const commandsData = await loadCommandInfo(locale) || await loadCommands(ctx, session)
-
-      if (!commandsData) {
-        throw new Error('无法加载命令信息')
-      }
-
-      const style = config.darkMode ? darkStyle : defaultStyle
+      const session = createRenderSession(config.locale)
+      const commandsData = await loadCommands(ctx, session)
 
       logger.info('渲染命令列表')
       const image = await renderer.renderCommandList(ctx, commandsData, {
         title: config.title,
         description: config.description,
-        style,
-        locale
+        style: getStyleConfig()
       })
 
-      await saveMenuCache(image, 'command-list', locale, now)
+      // 保存命令数据到JSON文件
+      await cacheManager.saveCommandsData(commandsData)
+
+      // 保存图片到文件
+      await fs.writeFile(cacheManager.getCommandListPath(), image)
       return image
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
       logger.error('渲染命令列表失败', error)
-      throw new Error(`渲染命令列表失败: ${errorMessage}`)
+      throw new Error(`渲染失败: ${error.message || String(error)}`)
     }
   }
 
-  // 预渲染命令列表
-  async function preRender() {
-    if (!config.renderOnStartup) {
-      logger.info('预渲染功能已关闭')
-      return
+  /**
+   * 获取命令图片(带缓存)
+   * @param {string} commandName - 命令名称
+   * @returns {Promise<Buffer>} - 图片缓冲区
+   */
+  async function getCommandImage(commandName: string) {
+    const cachePath = cacheManager.getCommandPath(commandName)
+
+    if (config.useCache && existsSync(cachePath) && cacheManager.isCacheValid(config.cacheExpiry)) {
+      logger.debug(`使用缓存命令帮助: ${commandName}`)
+      return await fs.readFile(cachePath)
     }
 
+    return await renderAndCacheCommandHelp(commandName)
+  }
+
+  /**
+   * 获取命令列表图片(带缓存)
+   * @returns {Promise<Buffer>} - 图片缓冲区
+   */
+  async function getCommandListImage() {
+    const cachePath = cacheManager.getCommandListPath()
+
+    if (config.useCache && existsSync(cachePath) && cacheManager.isCacheValid(config.cacheExpiry)) {
+      logger.debug(`使用缓存命令列表`)
+      return await fs.readFile(cachePath)
+    }
+
+    return await renderAndCacheCommandList()
+  }
+
+  /**
+   * 预渲染所有命令
+   */
+  async function prerenderAllCommands() {
+    if (!config.prerender) return
+
+    logger.info('开始预渲染所有命令图片')
     try {
-      logger.info('开始预渲染命令列表')
-      const session = await createRenderSession(config.locale)
-      const commandsData = await loadCommands(ctx, session)
+      // 先渲染命令列表
+      await renderAndCacheCommandList()
 
-      await saveCommandInfo(commandsData, config.locale)
-      await renderCommandListImage(true)
+      // 获取所有命令
+      const allCommands = ctx.$commander._commandList.map(cmd => cmd.name)
+      // 记录成功和失败的命令数
+      let succeeded = 0
+      let failed = 0
 
-      logger.success('预渲染命令列表完成')
+      // 使用较低优先级的循环处理所有命令，避免阻塞
+      for (const cmdName of allCommands) {
+        logger.debug(`预渲染命令: ${cmdName}`)
+        try {
+          await renderAndCacheCommandHelp(cmdName)
+          succeeded++
+        } catch (e) {
+          failed++
+          logger.warn(`预渲染命令 ${cmdName} 失败: ${e.message}`)
+          // 继续下一个命令
+        }
+      }
+
+      // 处理子命令 - 由于会有重复，只尝试没有缓存的命令
+      const processedCommands = new Set(allCommands)
+      const childCommands = []
+
+      // 收集所有子命令
+      ctx.$commander._commandList.forEach(cmd => {
+        function collectChildren(command, parentPath = '') {
+          const fullPath = parentPath ? `${parentPath}.${command.name}` : command.name
+          command.children.forEach(child => {
+            const childPath = child.name
+            if (!processedCommands.has(childPath)) {
+              childCommands.push(childPath)
+              processedCommands.add(childPath)
+            }
+            collectChildren(child, childPath)
+          })
+        }
+        collectChildren(cmd)
+      })
+
+      // 处理子命令
+      for (const cmdName of childCommands) {
+        logger.debug(`预渲染子命令: ${cmdName}`)
+        try {
+          await renderAndCacheCommandHelp(cmdName)
+          succeeded++
+        } catch (e) {
+          failed++
+          // 对于子命令，降低日志级别避免大量警告
+          logger.debug(`预渲染子命令 ${cmdName} 失败: ${e.message}`)
+        }
+      }
+
+      logger.info(`预渲染完成，成功: ${succeeded} 个命令，失败: ${failed} 个命令`)
     } catch (error) {
-      logger.error('预渲染失败', error)
+      logger.error('预渲染命令图片失败', error)
     }
   }
 
   // 初始化
   ctx.on('ready', async () => {
-    await ensureDirectories()
-    await saveStyles()
-    await preRender()
+    // 初始化缓存管理器
+    cacheManager = new CacheManager(ctx.baseDir, config.locale, config.darkMode)
+
+    // 确保目录存在
+    await cacheManager.ensureDirectories()
+    await cacheManager.loadMetadata()
+
+    // 检查命令哈希是否变化
+    const commandHash = await getCommandsHash()
+    const hashChanged = commandHash !== cacheManager.getCommandHash()
+
+    if (hashChanged || !cacheManager.isCacheValid(config.cacheExpiry)) {
+      logger.info('命令数据已更改或缓存过期，将重新生成缓存')
+      cacheManager.updateMetadata(commandHash)
+      await cacheManager.saveMetadata()
+      await prerenderAllCommands()
+    } else if (config.prerender) {
+      logger.info('使用现有缓存')
+    }
   })
 
   // 注册命令
   ctx.command('menu', '显示命令帮助')
     .userFields(['authority'])
     .option('locale', '-l <locale:string> 指定语言')
-    .option('reload', '-r 强制重新渲染')
     .option('dark', '-d 使用暗黑模式')
     .option('command', '-c <cmd:string> 查看特定命令帮助')
+    .option('refresh', '-r 强制刷新缓存')
     .action(async ({ options }) => {
       try {
-        if (options.dark !== undefined) {
-          config.darkMode = options.dark
+        // 临时应用选项
+        const originalConfig = {
+          darkMode: config.darkMode,
+          locale: config.locale,
+          useCache: config.useCache
         }
 
-        if (options.command) {
-          logger.info(`查看命令帮助: ${options.command}`)
-          const image = await renderCommandHelpImage(options.command, options.reload, options.locale)
-          return h.image(image, 'image/png')
-        } else {
-          logger.info(`查看命令列表${options.reload ? ' (强制刷新)' : ''}`)
-          const image = await renderCommandListImage(options.reload, options.locale)
-          return h.image(image, 'image/png')
+        if (options.dark !== undefined) config.darkMode = options.dark
+        if (options.locale) config.locale = options.locale
+        if (options.refresh) config.useCache = false
+
+        // 如果更改了主题或语言，重新创建缓存管理器
+        if (options.dark !== undefined || options.locale) {
+          cacheManager = new CacheManager(ctx.baseDir, config.locale, config.darkMode)
         }
+
+        // 获取图片
+        const image = options.command
+          ? await getCommandImage(options.command)
+          : await getCommandListImage()
+
+        // 恢复原始设置
+        Object.assign(config, originalConfig)
+
+        return h.image(image, 'image/png')
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
         logger.error('命令执行失败', error)
-        return `执行失败: ${errorMessage}`
+        return `执行失败: ${error.message || String(error)}`
       }
     })
 }
