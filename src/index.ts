@@ -1,15 +1,15 @@
 import { Context, Schema, Service, h, Logger } from 'koishi'
 import { resolve } from 'path'
 import { promises as fs } from 'fs'
-import { renderCommandHelp, renderCommandList } from './renderer'
+import * as renderer from './render'
 import { defaultStyle, darkStyle } from './styles'
 import { loadCommands, extractCommandInfo } from './loader'
 
-export const name = 'ocr'
+export const name = 'menu'
 export const inject = ['puppeteer']
 
 // 创建logger
-const logger = new Logger('ocr')
+const logger = new Logger('menu')
 
 export interface Config {
   title: string
@@ -28,7 +28,7 @@ export const Config: Schema<Config> = Schema.object({
   renderOnStartup: Schema.boolean().description('启动时预渲染帮助').default(true),
   cacheTime: Schema.number().description('帮助缓存有效时间(毫秒)，0表示始终使用缓存').default(3600000), // 默认1小时
   darkMode: Schema.boolean().description('使用暗色主题').default(false),
-  dataDir: Schema.string().description('数据存储目录').default('data/ocr')
+  dataDir: Schema.string().description('数据存储目录').default('data/menu')
 })
 
 export function apply(ctx: Context, config: Config) {
@@ -181,7 +181,7 @@ export function apply(ctx: Context, config: Config) {
       const style = config.darkMode ? darkStyle : defaultStyle
 
       logger.info(`渲染命令帮助: ${commandName}`)
-      const image = await renderCommandHelp(ctx, commandData, {
+      const image = await renderer.renderCommandHelp(ctx, commandData, {
         title: `命令: ${commandName}`,
         style,
         locale
@@ -221,7 +221,7 @@ export function apply(ctx: Context, config: Config) {
       const style = config.darkMode ? darkStyle : defaultStyle
 
       logger.info('渲染命令列表')
-      const image = await renderCommandList(ctx, commandsData, {
+      const image = await renderer.renderCommandList(ctx, commandsData, {
         title: config.title,
         description: config.description,
         style,
@@ -266,7 +266,7 @@ export function apply(ctx: Context, config: Config) {
   })
 
   // 注册命令
-  ctx.command('ocr', '显示命令帮助')
+  ctx.command('menu', '显示命令帮助')
     .userFields(['authority'])
     .option('locale', '-l <locale:string> 指定语言')
     .option('reload', '-r 强制重新渲染')

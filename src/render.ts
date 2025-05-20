@@ -230,20 +230,12 @@ export async function htmlToImage(ctx: Context, html: string): Promise<Buffer> {
 
 // 渲染命令列表
 export async function renderCommandList(ctx: Context, categories: any[], config: any): Promise<Buffer> {
-  try {
-    const html = generateCommandListHTML(categories, config)
-    return await htmlToImage(ctx, html)
-  } catch (error) {
-    throw error
-  }
+  const html = generateCommandListHTML(categories, config)
+  return await htmlToImage(ctx, html)
 }
 
 // 渲染命令帮助
 export async function renderCommandHelp(ctx: Context, commandData: any, config: any): Promise<Buffer> {
-  try {
-    const html = generateCommandHelpHTML(commandData, config)
-    return await htmlToImage(ctx, html)
-  } catch (error) {
-    throw error
-  }
+  const html = generateCommandHelpHTML(commandData, config)
+  return await htmlToImage(ctx, html)
 }
