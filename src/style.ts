@@ -1,8 +1,6 @@
-import { Logger } from 'koishi'
 import { promises as fs, existsSync } from 'fs'
 import { join, resolve } from 'path'
-
-const log = new Logger('menu:style')
+import { logger } from './index'
 
 export interface StyleConfig {
   // 基础颜色
@@ -348,7 +346,6 @@ export class Style {
   constructor(baseDir: string, themeId: string = 'light') {
     this.themeDir = resolve(baseDir, 'data/menu/themes')
     this.curThemeId = themeId
-    log.info(`样式初始化: 主题=${themeId}`)
   }
 
   /**
@@ -366,10 +363,10 @@ export class Style {
           JSON.stringify({ id: 'custom', name: '模板主题', styles: Style.TEMPLATE }, null, 2),
           'utf8'
         )
-        log.info('已保存模板主题')
+        logger.info('已保存模板主题')
       }
     } catch (err) {
-      log.error('保存模板主题失败:', err)
+      logger.error('保存模板主题失败:', err)
     }
 
     // 注册内置主题
@@ -393,17 +390,14 @@ export class Style {
               name: data.name || id,
               styles: data.styles
             })
-            log.debug(`从文件加载主题: ${id}`)
           }
         } catch (err) {
-          log.error(`加载主题文件 ${file} 失败:`, err)
+          logger.error(`加载主题文件 ${file} 失败:`, err)
         }
       }))
     } catch (err) {
-      log.error('加载自定义主题失败:', err)
+      logger.error('加载自定义主题失败:', err)
     }
-
-    log.info(`主题系统初始化完成，共加载 ${this.themes.size} 个主题`)
   }
 
   /**
@@ -411,32 +405,10 @@ export class Style {
    */
   public addTheme(theme: Theme): void {
     if (!theme?.id || !theme.styles) {
-      log.warn('尝试注册无效主题')
+      logger.warn('尝试注册无效主题')
       return
     }
     this.themes.set(theme.id, theme)
-    log.debug(`已注册主题: ${theme.id} (${theme.name || '未命名'})`)
-  }
-
-  /**
-   * 保存主题
-   */
-  public async saveTheme(themeId: string): Promise<boolean> {
-    try {
-      const theme = this.themes.get(themeId)
-      if (!theme) {
-        log.warn(`尝试保存不存在的主题: ${themeId}`)
-        return false
-      }
-
-      const path = join(this.themeDir, `${themeId}.json`)
-      await fs.writeFile(path, JSON.stringify(theme, null, 2), 'utf8')
-      log.info(`主题已保存: ${themeId}`)
-      return true
-    } catch (err) {
-      log.error(`保存主题 ${themeId} 失败:`, err)
-      return false
-    }
   }
 
   /**
@@ -445,7 +417,7 @@ export class Style {
   public getStyle(): StyleConfig {
     const theme = this.themes.get(this.curThemeId)
     if (!theme) {
-      log.warn(`主题 ${this.curThemeId} 不存在，使用默认主题`)
+      logger.warn(`主题 ${this.curThemeId} 不存在，使用默认主题`)
       return Style.LIGHT
     }
     return theme.styles
@@ -456,11 +428,11 @@ export class Style {
    */
   public setTheme(themeId: string): boolean {
     if (!this.themes.has(themeId)) {
-      log.warn(`尝试切换到不存在的主题: ${themeId}`)
+      logger.warn(`尝试切换到不存在的主题: ${themeId}`)
       return false
     }
     this.curThemeId = themeId
-    log.info(`主题已更新: ${themeId}`)
+    logger.info(`主题已更新: ${themeId}`)
     return true
   }
 

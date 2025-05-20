@@ -1,6 +1,5 @@
-import { Context, Logger } from 'koishi'
-
-const log = new Logger('menu:cmd')
+import { Context } from 'koishi'
+import { logger } from './index'
 
 export interface CommandOption {
   name: string
@@ -49,7 +48,6 @@ export class Command {
    */
   constructor(ctx: Context) {
     this.ctx = ctx
-    log.info('命令提取器初始化完成')
   }
 
   /**
@@ -73,11 +71,11 @@ export class Command {
   public async extractCategories(locale: string): Promise<CategoryData[]> {
     const session = this.createSession(locale)
     const commander = this.ctx.$commander
-    log.info(`提取命令列表(${locale})，共${commander._commandList.length}个命令`)
+    logger.info(`提取命令列表(${locale})，共${commander._commandList.length}个命令`)
 
     // 获取顶级命令
     const roots = commander._commandList.filter((cmd: any) => !cmd.parent)
-    log.info(`找到 ${roots.length} 个顶级命令`)
+    logger.info(`找到 ${roots.length} 个顶级命令`)
 
     // 处理命令
     const cmdsData = (await Promise.all(
@@ -86,7 +84,7 @@ export class Command {
 
     // 排序并分组
     cmdsData.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''))
-    log.info(`共提取 ${cmdsData.length} 个可见命令`)
+    logger.info(`共提取 ${cmdsData.length} 个可见命令`)
 
     return [{
       name: "命令列表",
@@ -99,6 +97,8 @@ export class Command {
    * 分组命令
    */
   private groupCmds(cmds: CommandData[]): CommandGroup[] {
+    if (!cmds?.length) return []
+
     // 创建分组映射
     const map = new Map<string, CommandData[]>()
 
@@ -176,12 +176,7 @@ export class Command {
    * 提取命令信息
    */
   public async extractCmdInfo(command: any, session?: any): Promise<CommandData|null> {
-    if (!command?.name) {
-      log.debug('跳过无效命令')
-      return null
-    }
-
-    log.debug(`提取命令: ${command.name}`)
+    if (!command?.name) return null
 
     try {
       // 处理选项
@@ -246,7 +241,7 @@ export class Command {
         group: this.getGroup(command.name)
       }
     } catch (error) {
-      log.error(`提取命令 ${command?.name || '未知'} 失败:`, error)
+      logger.error(`提取命令 ${command?.name || '未知'} 失败:`, error)
       return null
     }
   }
@@ -259,7 +254,7 @@ export class Command {
 
     const cmd = this.getCmdObj(name)
     if (!cmd) {
-      log.warn(`命令不存在: ${name}`)
+      logger.warn(`命令不存在: ${name}`)
       return null
     }
 
@@ -289,7 +284,6 @@ export class Command {
       }
       return this.ctx.$commander.get(name)
     } catch (error) {
-      log.debug(`查找命令失败: ${name}`, error)
       return null
     }
   }
@@ -311,7 +305,7 @@ export class Command {
     this.ctx.$commander._commandList.forEach(cmd => collect(cmd))
 
     const result = Array.from(processed)
-    log.info(`收集到 ${result.length} 个命令和子命令`)
+    logger.info(`收集到 ${result.length} 个命令和子命令`)
     return result
   }
 }

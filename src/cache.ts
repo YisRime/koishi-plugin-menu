@@ -1,9 +1,7 @@
-import { Logger } from 'koishi'
 import { promises as fs, existsSync } from 'fs'
 import { resolve, join } from 'path'
 import { CategoryData } from './command'
-
-const log = new Logger('menu:cache')
+import { logger } from './index'
 
 /**
  * 缓存管理类
@@ -26,7 +24,7 @@ export class Cache {
     this.cmdDataDir = resolve(this.dataDir, 'data')
     this.locale = locale
     this.themeId = themeId
-    log.info(`缓存初始化: 语言=${locale}, 主题=${themeId}`)
+    logger.info(`缓存初始化: 语言=${locale}, 主题=${themeId}`)
   }
 
   /**
@@ -41,10 +39,9 @@ export class Cache {
         fs.mkdir(this.cmdDataDir, { recursive: true }),
         fs.mkdir(resolve(this.dataDir, 'themes'), { recursive: true })
       ])
-      log.info('缓存目录初始化成功')
       return true
     } catch (err) {
-      log.error('初始化缓存目录失败', err)
+      logger.error('初始化缓存目录失败', err)
       return false
     }
   }
@@ -118,10 +115,9 @@ export class Cache {
         this.getDataPath(),
         JSON.stringify(data, null, 2)
       )
-      log.debug(`命令数据保存成功: ${this.locale}`)
       return true
     } catch (err) {
-      log.error(`保存命令数据失败: ${this.locale}`, err)
+      logger.error(`保存命令数据失败: ${this.locale}`, err)
       return false
     }
   }
@@ -134,10 +130,9 @@ export class Cache {
 
     try {
       await this.safeWrite(path, data)
-      log.debug(`图片缓存已保存: ${path}`)
       return true
     } catch (err) {
-      log.error(`保存图片失败: ${path}`, err)
+      logger.error(`保存图片失败: ${path}`, err)
       return false
     }
   }
@@ -157,12 +152,12 @@ export class Cache {
         if (Array.isArray(data) && data.length > 0 && data[0].commands) {
           return data as CategoryData[]
         }
-        log.warn(`命令数据格式无效: ${this.locale}`)
+        logger.warn(`命令数据格式无效: ${this.locale}`)
       } else {
-        log.info(`未找到命令数据: ${this.locale}`)
+        logger.info(`未找到命令数据: ${this.locale}`)
       }
     } catch (err) {
-      log.warn(`加载命令数据失败: ${this.locale}`, err)
+      logger.warn(`加载命令数据失败: ${this.locale}`, err)
     }
     return null
   }
@@ -177,12 +172,10 @@ export class Cache {
         if (Buffer.isBuffer(data) && data.length > 0) {
           return data
         }
-        log.warn(`图片缓存无效: ${path}`)
-      } else {
-        log.debug(`未找到图片缓存: ${path}`)
+        logger.warn(`图片缓存无效: ${path}`)
       }
     } catch (err) {
-      log.warn(`读取图片缓存失败: ${path}`, err)
+      logger.warn(`读取图片缓存失败: ${path}`, err)
     }
     return null
   }
@@ -207,7 +200,7 @@ export class Cache {
   public updateConfig(locale: string, themeId: string): void {
     this.locale = locale
     this.themeId = themeId
-    log.info(`更新缓存配置: 语言=${locale}, 主题=${themeId}`)
+    logger.info(`更新缓存配置: 语言=${locale}, 主题=${themeId}`)
   }
 
   /**
@@ -225,20 +218,20 @@ export class Cache {
           files
             .filter(file => pattern.test(file))
             .map(file => fs.unlink(join(this.imgDir, file))
-              .catch(err => log.debug(`删除文件失败: ${file}`, err)))
+              .catch(() => {}))
         )
       }
 
       // 删除数据文件
       const dataPath = this.getDataPath()
       if (existsSync(dataPath)) {
-        await fs.unlink(dataPath).catch(err => log.debug('删除数据失败', err))
+        await fs.unlink(dataPath).catch(() => {})
       }
 
-      log.info(`缓存已清除: 语言=${this.locale}, 主题=${this.themeId}`)
+      logger.info(`缓存已清除: 语言=${this.locale}, 主题=${this.themeId}`)
       return true
     } catch (err) {
-      log.error('清除缓存失败', err)
+      logger.error('清除缓存失败', err)
       return false
     }
   }

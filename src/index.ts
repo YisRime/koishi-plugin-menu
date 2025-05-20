@@ -1,5 +1,5 @@
 import { Context, Schema, Logger, Element, h } from 'koishi'
-import { Style, Theme } from './style'
+import { Style } from './style'
 import { Command, CategoryData } from './command'
 import { Render } from './render'
 import { Cache } from './cache'
@@ -49,15 +49,11 @@ export function apply(ctx: Context, config: Config) {
   let timer: NodeJS.Timeout = null
   let ready = false
 
-  logger.info(`使用默认语言: ${defLocale}`)
-
   // 注册命令
   ctx.command('menu [command:string]', '显示命令帮助')
     .userFields(['authority'])
     .option('refresh', '-r 刷新命令缓存')
     .action(async ({ session, options, args }) => {
-      if (!ready) return '插件正在初始化，请稍后再试...'
-
       const locale = session.locales?.[0] || defLocale
 
       if (options.refresh) {
@@ -84,8 +80,6 @@ export function apply(ctx: Context, config: Config) {
 
   // 初始化插件
   ctx.on('ready', async () => {
-    logger.info('初始化菜单插件...')
-
     try {
       await Promise.all([
         cache.initialize(),
@@ -169,7 +163,6 @@ export function apply(ctx: Context, config: Config) {
         rendered++
       } catch (error) {
         failed++
-        logger.debug(`预渲染命令失败: ${name}`, error)
       }
 
       if (count % 10 === 0 || count === total) {

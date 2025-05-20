@@ -1,9 +1,8 @@
-import { Context, Logger } from 'koishi'
+import { Context } from 'koishi'
 import {} from 'koishi-plugin-puppeteer'
 import { CommandData, CategoryData, CommandGroup } from './command'
 import { Style } from './style'
-
-const log = new Logger('menu:render')
+import { logger } from './index'
 
 export interface RenderConfig {
   title?: string
@@ -49,7 +48,6 @@ export class Render {
   constructor(ctx: Context, style: Style) {
     this.ctx = ctx
     this.style = style
-    log.info('渲染器初始化完成')
   }
 
   /**
@@ -109,7 +107,7 @@ export class Render {
         omitBackground: true
       })
     } catch (err) {
-      log.error('图片渲染出错:', err)
+      logger.error('图片渲染出错:', err)
       throw new Error(`图片渲染出错: ${err.message || '未知错误'}`)
     } finally {
       await page.close().catch(() => {})
@@ -121,7 +119,7 @@ export class Render {
    */
   public genListHTML(categories: CategoryData[], config: RenderConfig = {}): string {
     if (!categories?.length) {
-      log.warn('无效的分类数据')
+      logger.warn('无效的分类数据')
       categories = [{ name: '命令列表', commands: [] }]
     }
 
@@ -167,7 +165,6 @@ export class Render {
    */
   public genCmdHTML(cmd: CommandData, config: RenderConfig = {}): string {
     if (!cmd) {
-      log.warn('无效的命令数据')
       return this.wrap('<div>无法显示命令数据</div>')
     }
 
@@ -447,6 +444,5 @@ export class Render {
    */
   public updateStyle(style: Style): void {
     this.style = style
-    log.info('已更新样式')
   }
 }
