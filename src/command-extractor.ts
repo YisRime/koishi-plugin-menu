@@ -29,6 +29,10 @@ export interface CategoryData {
 export class CommandExtractor {
   private ctx: Context
 
+  /**
+   * 创建命令提取器
+   * @param ctx Koishi上下文
+   */
   constructor(ctx: Context) {
     this.ctx = ctx
     logger.info('命令提取器初始化完成')
@@ -36,8 +40,8 @@ export class CommandExtractor {
 
   /**
    * 创建命令渲染会话
-   * @param {string} locale 语言代码
-   * @returns {any} 会话对象
+   * @param locale 语言代码
+   * @returns 会话对象
    */
   private createSession(locale: string): any {
     const session: any = {
@@ -45,7 +49,7 @@ export class CommandExtractor {
       user: { authority: 4 }, // 使用高权限以查看所有命令
       text: (path, params) => this.ctx.i18n.render([locale], Array.isArray(path) ? path : [path], params),
       isDirect: true,
-      locales: [locale], // 使用正确的 locales 属性
+      locales: [locale],
     }
     session.resolve = (val) => typeof val === 'function' ? val(session) : val
     return session
@@ -53,8 +57,8 @@ export class CommandExtractor {
 
   /**
    * 提取所有命令分类数据
-   * @param {string} locale 语言代码
-   * @returns {Promise<CategoryData[]>} 分类数据数组
+   * @param locale 语言代码
+   * @returns 分类数据数组
    */
   public async extractCategories(locale: string): Promise<CategoryData[]> {
     const session = this.createSession(locale)
@@ -65,28 +69,26 @@ export class CommandExtractor {
     const rootCommands = commander._commandList.filter((cmd: any) => !cmd.parent)
     logger.info(`找到 ${rootCommands.length} 个顶级命令`)
 
-    const rootCategory: CategoryData = {
-      name: "命令列表",
-      commands: []
-    }
-
     // 并行处理所有命令
-    const commandPromises = rootCommands.map(cmd => this.extractCommandInfo(cmd, session))
-    const commandsData = await Promise.all(commandPromises)
-    rootCategory.commands = commandsData.filter(Boolean)
+    const commandsData = (await Promise.all(
+      rootCommands.map(cmd => this.extractCommandInfo(cmd, session))
+    )).filter(Boolean)
 
     // 按名称排序
-    rootCategory.commands.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''))
-    logger.info(`共提取 ${rootCategory.commands.length} 个可见命令`)
+    commandsData.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''))
+    logger.info(`共提取 ${commandsData.length} 个可见命令`)
 
-    return [rootCategory]
+    return [{
+      name: "命令列表",
+      commands: commandsData
+    }]
   }
 
   /**
    * 提取单个命令信息
-   * @param {any} command - 命令对象
-   * @param {any} session - 会话对象
-   * @returns {Promise<CommandData|null>} 命令数据
+   * @param command 命令对象
+   * @param session 会话对象
+   * @returns 命令数据
    */
   public async extractCommandInfo(command: any, session?: any): Promise<CommandData|null> {
     if (!command?.name) {
@@ -100,9 +102,10 @@ export class CommandExtractor {
       // 处理选项
       const options: CommandOption[] = []
       Object.values(command._options || {}).forEach((option: any) => {
+        if (!option || typeof option !== 'object') return
+
         const processOption = (opt: any, name: string) => {
           if (!opt) return
-
           const description = session.text(opt.descPath ?? [`commands.${command.name}.options.${name}`, ""], opt.params || {})
           if (description || opt.syntax) {
             options.push({
@@ -112,8 +115,6 @@ export class CommandExtractor {
             })
           }
         }
-
-        if (!option || typeof option !== 'object') return
 
         if (!('value' in option)) {
           processOption(option, option.name)
@@ -126,16 +127,11 @@ export class CommandExtractor {
         }
       })
 
-      // 获取命令描述
+      // 获取命令描述和用法
       const description = session.text([`commands.${command.name}.description`, ""], command.params || {})
-
-      // 获取用法
-      let usage = ""
-      if (command._usage) {
-        usage = typeof command._usage === "string" ? command._usage : await command._usage(session)
-      } else {
-        usage = session.text([`commands.${command.name}.usage`, ""], command.params || {}) || ""
-      }
+      const usage = command._usage
+        ? (typeof command._usage === "string" ? command._usage : await command._usage(session))
+        : session.text([`commands.${command.name}.usage`, ""], command.params || {}) || ""
 
       // 获取示例
       const examples: string[] = []
@@ -149,13 +145,9 @@ export class CommandExtractor {
       }
 
       // 处理子命令
-      const subCommands: CommandData[] = []
-      if (Array.isArray(command.children) && command.children.length > 0) {
-        // 并行处理子命令
-        const subCommandPromises = command.children.map(subCmd => this.extractCommandInfo(subCmd, session))
-        const subCommandsData = await Promise.all(subCommandPromises)
-        subCommands.push(...subCommandsData.filter(Boolean))
-      }
+      const subCommands = Array.isArray(command.children) && command.children.length > 0
+        ? (await Promise.all(command.children.map(subCmd => this.extractCommandInfo(subCmd, session)))).filter(Boolean)
+        : undefined
 
       // 构建命令数据对象
       return {
@@ -165,7 +157,7 @@ export class CommandExtractor {
         usage,
         options,
         examples,
-        subCommands: subCommands.length > 0 ? subCommands : undefined
+        subCommands: subCommands?.length > 0 ? subCommands : undefined
       }
     } catch (error) {
       logger.error(`提取命令 ${command?.name || '未知命令'} 信息时出错:`, error)
@@ -175,9 +167,9 @@ export class CommandExtractor {
 
   /**
    * 获取特定命令的数据
-   * @param {string} commandName - 命令名称
-   * @param {string} locale - 语言代码
-   * @returns {Promise<CommandData|null>} 命令数据
+   * @param commandName 命令名称
+   * @param locale 语言代码
+   * @returns 命令数据
    */
   public async getCommandData(commandName: string, locale: string): Promise<CommandData|null> {
     if (!commandName) return null
@@ -188,14 +180,13 @@ export class CommandExtractor {
       return null
     }
 
-    const session = this.createSession(locale)
-    return await this.extractCommandInfo(command, session)
+    return await this.extractCommandInfo(command, this.createSession(locale))
   }
 
   /**
    * 获取命令对象
-   * @param {string} commandName - 命令名称
-   * @returns {any|null} 命令对象
+   * @param commandName 命令名称
+   * @returns 命令对象
    */
   public getCommandObject(commandName: string): any {
     try {
@@ -214,9 +205,8 @@ export class CommandExtractor {
           if (!currentCmd) return null
         }
         return currentCmd
-      } else {
-        return this.ctx.$commander.get(commandName)
       }
+      return this.ctx.$commander.get(commandName)
     } catch (error) {
       logger.debug(`查找命令出错: ${commandName}`, error)
       return null
@@ -225,45 +215,34 @@ export class CommandExtractor {
 
   /**
    * 查找子命令
-   * @param {any} parentCommand - 父命令
-   * @param {string} fullName - 完整命令名称
-   * @returns {any|null} 命令对象
+   * @param parentCommand 父命令
+   * @param fullName 完整命令名称
+   * @returns 命令对象
    */
   private findChildCommand(parentCommand: any, fullName: string): any {
     if (!parentCommand?.children) return null
 
-    // 直接查找子命令
-    for (const child of parentCommand.children) {
-      if (child.name === fullName) return child
-    }
-
-    return null
+    // 直接查找匹配的子命令
+    return parentCommand.children.find(child => child.name === fullName)
   }
 
   /**
    * 收集所有命令名称
-   * @returns {string[]} 命令名称数组
+   * @returns 命令名称数组
    */
   public collectAllCommands(): string[] {
-    // 使用Set避免重复
     const processedCommands = new Set<string>()
 
-    // 收集命令和子命令
+    // 递归收集命令和子命令
     const collectAllCommandNames = (command: any) => {
       if (!command?.name) return
-
       processedCommands.add(command.name)
-
-      // 处理子命令
-      if (Array.isArray(command.children)) {
-        command.children.forEach(child => collectAllCommandNames(child))
-      }
+      command.children?.forEach?.(child => collectAllCommandNames(child))
     }
 
     // 处理所有顶级命令
     this.ctx.$commander._commandList.forEach(cmd => collectAllCommandNames(cmd))
 
-    // 转换为数组并返回
     const result = Array.from(processedCommands)
     logger.info(`收集到 ${result.length} 个命令和子命令`)
     return result

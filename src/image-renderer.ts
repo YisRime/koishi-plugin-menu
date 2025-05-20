@@ -17,6 +17,11 @@ export class ImageRenderer {
   private ctx: Context
   private styleManager: StyleManager
 
+  /**
+   * 创建图像渲染器
+   * @param ctx Koishi上下文
+   * @param styleManager 样式管理器
+   */
   constructor(ctx: Context, styleManager: StyleManager) {
     this.ctx = ctx
     this.styleManager = styleManager
@@ -25,8 +30,8 @@ export class ImageRenderer {
 
   /**
    * 渲染HTML为图片
-   * @param {string} html - HTML内容
-   * @returns {Promise<Buffer>} 图片数据
+   * @param html HTML内容
+   * @returns 图片数据Buffer
    */
   public async renderToImage(html: string): Promise<Buffer> {
     const page = await this.ctx.puppeteer.page()
@@ -94,24 +99,19 @@ export class ImageRenderer {
 
   /**
    * 生成命令列表的HTML
-   * @param {CategoryData[]} categories - 分类数据
-   * @param {RenderConfig} config - 渲染配置
-   * @returns {string} HTML字符串
+   * @param categories 分类数据
+   * @param config 渲染配置
+   * @returns HTML字符串
    */
   public generateCommandListHTML(categories: CategoryData[], config: RenderConfig = {}): string {
-    if (!categories || !Array.isArray(categories) || categories.length === 0) {
+    if (!categories?.length) {
       logger.warn('无效的分类数据')
-      categories = [{
-        name: '命令列表',
-        commands: []
-      }]
+      categories = [{ name: '命令列表', commands: [] }]
     }
 
     const title = config.title || "命令帮助"
-    const description = config.description || ""
-
     const content = `
-      ${this.renderHeader(title, description)}
+      ${this.renderHeader(title, config.description || "")}
       ${categories.map(category => this.renderCategory(category)).join("")}
     `
 
@@ -120,9 +120,9 @@ export class ImageRenderer {
 
   /**
    * 生成单个命令的HTML
-   * @param {CommandData} commandData - 命令数据
-   * @param {RenderConfig} config - 渲染配置
-   * @returns {string} HTML字符串
+   * @param commandData 命令数据
+   * @param config 渲染配置
+   * @returns HTML字符串
    */
   public generateCommandHTML(commandData: CommandData, config: RenderConfig = {}): string {
     if (!commandData) {
@@ -131,7 +131,6 @@ export class ImageRenderer {
     }
 
     const title = config.title || `命令: ${commandData.displayName || commandData.name || ''}`
-
     const content = `
       ${this.renderHeader(title, '')}
       <div class="category material-card">
@@ -144,8 +143,8 @@ export class ImageRenderer {
 
   /**
    * 将内容包装在容器中
-   * @param {string} content - HTML内容
-   * @returns {string} 包装后的HTML
+   * @param content HTML内容
+   * @returns 包装后的HTML
    */
   private wrapInContainer(content: string): string {
     return `
@@ -158,9 +157,9 @@ export class ImageRenderer {
 
   /**
    * 渲染标题部分
-   * @param {string} title - 标题
-   * @param {string} description - 描述
-   * @returns {string} HTML字符串
+   * @param title 标题
+   * @param description 描述
+   * @returns HTML字符串
    */
   private renderHeader(title: string, description: string): string {
     const style = this.styleManager.getStyle()
@@ -174,17 +173,16 @@ export class ImageRenderer {
 
   /**
    * 渲染分类
-   * @param {CategoryData} category - 分类数据
-   * @returns {string} HTML字符串
+   * @param category 分类数据
+   * @returns HTML字符串
    */
   private renderCategory(category: CategoryData): string {
     const style = this.styleManager.getStyle()
-    const name = category.name || '未命名分类'
     const commands = Array.isArray(category.commands) ? category.commands : []
 
     return `
       <div class="category material-card">
-        <h2 style="color: ${style.headerColor}; margin-bottom: 12px;">${name}</h2>
+        <h2 style="color: ${style.headerColor}; margin-bottom: 12px;">${category.name || '未命名分类'}</h2>
         <div class="commands">
           ${commands.map(command => this.renderCommand(command)).join("")}
         </div>
@@ -194,24 +192,20 @@ export class ImageRenderer {
 
   /**
    * 渲染单个命令
-   * @param {CommandData} command - 命令数据
-   * @returns {string} HTML字符串
+   * @param command 命令数据
+   * @returns HTML字符串
    */
   private renderCommand(command: CommandData): string {
     const style = this.styleManager.getStyle()
     const displayName = command.displayName ? String(command.displayName).replace(/\./g, " ") : ''
-    const description = command.description || ''
-    const usage = command.usage || ''
 
     return `
       <div class="command-item">
         <div class="command-header">
-          <span class="command-name" style="color: ${style.commandColor};">
-            ${displayName}
-          </span>
+          <span class="command-name" style="color: ${style.commandColor};">${displayName}</span>
         </div>
-        ${description ? `<div class="command-description" style="color: ${style.descriptionColor};">${description}</div>` : ""}
-        ${usage ? `<div class="command-usage"><pre>${usage}</pre></div>` : ""}
+        ${command.description ? `<div class="command-description" style="color: ${style.descriptionColor};">${command.description}</div>` : ""}
+        ${command.usage ? `<div class="command-usage"><pre>${command.usage}</pre></div>` : ""}
         ${this.renderOptions(command.options)}
         ${this.renderExamples(command.examples)}
       </div>
@@ -220,8 +214,8 @@ export class ImageRenderer {
 
   /**
    * 渲染选项
-   * @param {Array} options - 选项数组
-   * @returns {string} HTML字符串
+   * @param options 选项数组
+   * @returns HTML字符串
    */
   private renderOptions(options: any[]): string {
     if (!options?.length) return ""
@@ -231,9 +225,7 @@ export class ImageRenderer {
       <div class="command-options" style="color: ${style.optionColor};">
         <div class="options-title">可用选项：</div>
         <ul>
-          ${options.map(option => `
-            <li><code>${option.syntax || ''}</code> ${option.description || ''}</li>
-          `).join("")}
+          ${options.map(option => `<li><code>${option.syntax || ''}</code> ${option.description || ''}</li>`).join("")}
         </ul>
       </div>
     `
@@ -241,45 +233,42 @@ export class ImageRenderer {
 
   /**
    * 渲染示例
-   * @param {Array} examples - 示例数组
-   * @returns {string} HTML字符串
+   * @param examples 示例数组
+   * @returns HTML字符串
    */
   private renderExamples(examples: string[]): string {
     if (!examples?.length) return ""
-
     return `
       <div class="command-examples">
         <div class="examples-title">示例：</div>
-        <pre>${examples.map(example => example || '').join("\n")}</pre>
+        <pre>${examples.join("\n")}</pre>
       </div>
     `
   }
 
   /**
    * 渲染命令列表为图片
-   * @param {CategoryData[]} categories - 分类数据
-   * @param {RenderConfig} config - 渲染配置
-   * @returns {Promise<Buffer>} 图片数据
+   * @param categories 分类数据
+   * @param config 渲染配置
+   * @returns 图片数据
    */
   public async renderCommandList(categories: CategoryData[], config: RenderConfig = {}): Promise<Buffer> {
-    const html = this.generateCommandListHTML(categories, config)
-    return await this.renderToImage(html)
+    return await this.renderToImage(this.generateCommandListHTML(categories, config))
   }
 
   /**
    * 渲染单个命令为图片
-   * @param {CommandData} commandData - 命令数据
-   * @param {RenderConfig} config - 渲染配置
-   * @returns {Promise<Buffer>} 图片数据
+   * @param commandData 命令数据
+   * @param config 渲染配置
+   * @returns 图片数据
    */
   public async renderCommandHTML(commandData: CommandData, config: RenderConfig = {}): Promise<Buffer> {
-    const html = this.generateCommandHTML(commandData, config)
-    return await this.renderToImage(html)
+    return await this.renderToImage(this.generateCommandHTML(commandData, config))
   }
 
   /**
    * 更新样式管理器
-   * @param {StyleManager} styleManager - 新的样式管理器
+   * @param styleManager 新的样式管理器
    */
   public updateStyleManager(styleManager: StyleManager): void {
     this.styleManager = styleManager
