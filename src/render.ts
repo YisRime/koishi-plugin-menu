@@ -28,31 +28,23 @@ export class Render {
     game: 'sports_esports', chat: 'chat', send: 'send',
     download: 'download', upload: 'upload', time: 'schedule'
   }
-
   private readonly GROUP_ICONS = {
     default: 'widgets', system: 'settings', game: 'sports_esports',
     utility: 'build', admin: 'admin_panel_settings', user: 'person',
     media: 'perm_media', music: 'music_note', search: 'search',
     fun: 'mood', social: 'forum', other: 'more_horiz'
   }
-
   private readonly UI_ICONS = {
     categoryHeader: 'menu_book', options: 'tune',
     examples: 'code', subcommands: 'account_tree',
     badge: 'label', tag: 'local_offer'
   }
 
-  /**
-   * 创建渲染器
-   */
   constructor(ctx: Context, style: Style) {
     this.ctx = ctx
     this.style = style
   }
 
-  /**
-   * 渲染HTML为图片
-   */
   public async toImage(html: string): Promise<Buffer> {
     const page = await this.ctx.puppeteer.page()
 
@@ -64,14 +56,9 @@ export class Render {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>
-              body {
-                margin: 0; padding: 0;
-                font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
-                background: transparent; color: rgba(0, 0, 0, 0.87);
-                font-size: 14px; line-height: 1.4;
-                -webkit-font-smoothing: antialiased;
-              }
-              * { box-sizing: border-box; }
+              body {margin:0;padding:0;font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:transparent;
+                    color:rgba(0,0,0,0.87);font-size:14px;line-height:1.4;-webkit-font-smoothing:antialiased;}
+              * {box-sizing:border-box;}
             </style>
           </head>
           <body>${html}</body>
@@ -79,33 +66,21 @@ export class Render {
       `)
 
       // 获取内容尺寸并设置视口
-      const size = await page.evaluate(() => ({
+      const {width, height} = await page.evaluate(() => ({
         width: Math.min(480, document.body.scrollWidth),
         height: document.body.scrollHeight
       }))
 
-      await page.setViewport({
-        width: size.width,
-        height: size.height,
-        deviceScaleFactor: 2
-      })
+      await page.setViewport({width, height, deviceScaleFactor: 2})
 
       // 等待图片加载
-      await page.evaluate(() => {
-        const imgPromises = Array.from(document.querySelectorAll('img')).map(
-          img => img.complete ? Promise.resolve() : new Promise(resolve => {
-            img.addEventListener('load', resolve)
-            img.addEventListener('error', resolve)
-          })
-        )
-        return Promise.all(imgPromises)
-      })
+      await page.evaluate(() => Promise.all(Array.from(document.querySelectorAll('img'))
+        .map(img => img.complete ? Promise.resolve() : new Promise(resolve => {
+          img.addEventListener('load', resolve)
+          img.addEventListener('error', resolve)
+        }))))
 
-      return await page.screenshot({
-        type: 'png',
-        fullPage: true,
-        omitBackground: true
-      })
+      return await page.screenshot({type: 'png', fullPage: true, omitBackground: true})
     } catch (err) {
       logger.error('图片渲染出错:', err)
       throw new Error(`图片渲染出错: ${err.message || '未知错误'}`)
@@ -114,9 +89,6 @@ export class Render {
     }
   }
 
-  /**
-   * 生成命令列表HTML
-   */
   public genListHTML(categories: CategoryData[], config: RenderConfig = {}): string {
     if (!categories?.length) {
       logger.warn('无效的分类数据')
@@ -141,12 +113,8 @@ export class Render {
     return this.wrap(contentHTML)
   }
 
-  /**
-   * 渲染分组
-   */
   private renderGroups(groups: CommandGroup[]): string {
     if (!groups?.length) return ''
-
     return groups.map(group => `
       <div class="command-group">
         <div class="group-header">
@@ -160,13 +128,8 @@ export class Render {
     `).join('')
   }
 
-  /**
-   * 生成命令HTML
-   */
   public genCmdHTML(cmd: CommandData, config: RenderConfig = {}): string {
-    if (!cmd) {
-      return this.wrap('<div>无法显示命令数据</div>')
-    }
+    if (!cmd) return this.wrap('<div>无法显示命令数据</div>')
 
     const content = `<div class="material-card commands-card">
       <div class="category-header">
@@ -181,21 +144,10 @@ export class Render {
     return this.wrap(content)
   }
 
-  /**
-   * 包装内容
-   */
   private wrap(content: string): string {
-    return `
-      <div class="ocr-container">
-        ${content}
-      </div>
-      <style>${this.style.getStyleSheet()}</style>
-    `
+    return `<div class="ocr-container">${content}</div><style>${this.style.getStyleSheet()}</style>`
   }
 
-  /**
-   * 渲染命令网格
-   */
   private renderCmdGrid(commands: CommandData[]): string {
     const parents = commands.filter(cmd => cmd.subCommands?.length > 0)
     const regular = commands.filter(cmd => !cmd.subCommands?.length)
@@ -204,16 +156,11 @@ export class Render {
       ${regular.length > 0 ? `
         <div class="command-row">
           ${regular.map(cmd => this.renderCmdCard(cmd)).join("")}
-        </div>
-      ` : ''}
-
+        </div>` : ''}
       ${parents.map(cmd => this.renderParentCmd(cmd)).join("")}
     `
   }
 
-  /**
-   * 获取命令图标
-   */
   private getCmdIcon(cmdName: string): string {
     if (!cmdName) return this.CMD_ICONS.default
 
@@ -221,8 +168,8 @@ export class Render {
 
     // 检查命令名匹配
     for (const [key, icon] of Object.entries(this.CMD_ICONS)) {
-      if (key === 'default') continue
-      if (name === key || name.includes(key)) return icon
+      if (key !== 'default' && (name === key || name.includes(key)))
+        return icon
     }
 
     // 根据前缀分类
@@ -241,9 +188,7 @@ export class Render {
     }
   }
 
-  /**
-   * 渲染命令卡片
-   */
+  // 其余渲染函数保持不变，但可以进行内部简化
   private renderCmdCard(cmd: CommandData): string {
     const name = cmd.displayName ? String(cmd.displayName).replace(/\./g, " ") : cmd.name
     const desc = this.getDesc(cmd.description)
@@ -424,11 +369,7 @@ export class Render {
    * 渲染命令列表为图片
    */
   public async renderList(categories: CategoryData[], config: RenderConfig = {}): Promise<Buffer> {
-    const cfg = {
-      title: "命令列表",
-      showGroups: true,
-      ...config
-    }
+    const cfg = {title: "命令列表", showGroups: true, ...config}
     return await this.toImage(this.genListHTML(categories, cfg))
   }
 
@@ -439,9 +380,6 @@ export class Render {
     return await this.toImage(this.genCmdHTML(cmd, config))
   }
 
-  /**
-   * 更新样式
-   */
   public updateStyle(style: Style): void {
     this.style = style
   }

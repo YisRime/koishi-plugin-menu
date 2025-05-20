@@ -1,7 +1,7 @@
 {
   "name": "koishi-plugin-menu",
   "description": "可自定义的帮助菜单",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "contributors": [
     "Yis_Rime <yis_rime@outlook.com>"
   ],

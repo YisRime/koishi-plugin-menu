@@ -39,7 +39,7 @@ export const Config: Schema<Config> = Schema.object({
  * 插件应用函数
  */
 export function apply(ctx: Context, config: Config) {
-  // 变量
+  // 变量初始化
   const defLocale = typeof ctx.i18n.locales[0] === 'string' ? ctx.i18n.locales[0] : 'zh-CN'
   let style = new Style(ctx.baseDir, config.theme)
   let cmd = new Command(ctx)
@@ -58,7 +58,6 @@ export function apply(ctx: Context, config: Config) {
 
       if (options.refresh) {
         try {
-          logger.info('手动刷新缓存')
           await refreshCache(locale)
           return '命令缓存已刷新'
         } catch (err) {
@@ -67,7 +66,6 @@ export function apply(ctx: Context, config: Config) {
         }
       }
 
-      // 处理命令
       try {
         return args[0]
           ? await getCmdImg(args[0], locale)
@@ -81,48 +79,37 @@ export function apply(ctx: Context, config: Config) {
   // 初始化插件
   ctx.on('ready', async () => {
     try {
-      await Promise.all([
-        cache.initialize(),
-        style.initialize()
-      ])
-
+      // 并行初始化
+      await Promise.all([cache.initialize(), style.initialize()])
       render = new Render(ctx, style)
-      logger.info(`加载了 ${style.getAvailableThemes().length} 个可用主题`)
 
-      // 设置刷新定时器
+      // 设置定时刷新
       if (config.refreshInterval > 0 && config.cacheEnabled) {
         if (timer) clearInterval(timer)
-        const ms = config.refreshInterval * 60 * 60 * 1000
         timer = setInterval(() => {
-          logger.info('刷新缓存...')
           refreshCache(defLocale).catch(err => logger.error('刷新缓存失败:', err))
-        }, ms)
-        logger.info(`缓存刷新间隔: ${config.refreshInterval} 小时`)
+        }, config.refreshInterval * 60 * 60 * 1000)
+        logger.info(`已设置缓存刷新间隔: ${config.refreshInterval} 小时`)
       }
 
-      // 预渲染命令
-      logger.info(`预渲染命令(${defLocale})...`)
-
-      // 加载数据
+      // 加载命令数据
       const cached = await cache.loadCommandsData()
-      if (!cached) {
+      if (cached) {
+        catData.set(defLocale, cached)
+      } else {
         const data = await cmd.extractCategories(defLocale)
         catData.set(defLocale, data)
         if (config.cacheEnabled) await cache.saveCommandsData(data)
-      } else {
-        catData.set(defLocale, cached)
       }
 
-      // 渲染命令列表
-      if (config.cacheEnabled && !cache.hasCommandListCache()) {
-        logger.info('预渲染命令列表')
-        const img = await render.renderList(catData.get(defLocale))
-        await cache.saveImageCache(cache.getCommandListPath(), img)
-      }
-
-      // 渲染单个命令
+      // 准备缓存
       if (config.cacheEnabled) {
-        logger.info('预渲染单个命令...')
+        // 命令列表缓存
+        if (!cache.hasCommandListCache()) {
+          const img = await render.renderList(catData.get(defLocale))
+          await cache.saveImageCache(cache.getCommandListPath(), img)
+        }
+        // 预渲染命令
         await prerenderCmds(defLocale)
       }
 
@@ -145,17 +132,14 @@ export function apply(ctx: Context, config: Config) {
 
     for (const name of allCmds) {
       count++
-
       try {
         if (cache.hasCommandCache(name)) {
-          cached++
-          continue
+          cached++; continue
         }
 
         const data = await cmd.getCommandData(name, locale)
         if (!data) {
-          failed++
-          continue
+          failed++; continue
         }
 
         const img = await render.renderCmd(data, { title: `命令: ${name}` })
@@ -165,8 +149,9 @@ export function apply(ctx: Context, config: Config) {
         failed++
       }
 
-      if (count % 10 === 0 || count === total) {
-        logger.info(`预渲染进度: ${count}/${total}, 缓存: ${cached}, 渲染: ${rendered}, 失败: ${failed}`)
+      // 仅在完成时输出日志
+      if (count === total) {
+        logger.info(`预渲染完成: ${cached}个缓存, ${rendered}个新渲染, ${failed}个失败`)
       }
     }
   }
@@ -175,23 +160,17 @@ export function apply(ctx: Context, config: Config) {
    * 刷新缓存
    */
   async function refreshCache(locale: string) {
-    logger.info(`刷新缓存(${locale})...`)
-
     cache.updateConfig(locale, style.getThemeId())
     await cache.clearAllCache()
 
     const data = await cmd.extractCategories(locale)
     catData.set(locale, data)
 
-    if (config.cacheEnabled) {
-      await cache.saveCommandsData(data)
-    }
+    if (config.cacheEnabled) await cache.saveCommandsData(data)
 
-    logger.info('重新渲染命令列表')
     const img = await render.renderList(catData.get(locale))
     await cache.saveImageCache(cache.getCommandListPath(), img)
-
-    logger.info('缓存刷新完成')
+    logger.info(`已刷新缓存(${locale}, ${style.getThemeId()})`)
   }
 
   /**
@@ -211,18 +190,11 @@ export function apply(ctx: Context, config: Config) {
       if (!catData.has(locale)) {
         const data = await cmd.extractCategories(locale)
         catData.set(locale, data)
-        if (config.cacheEnabled) {
-          await cache.saveCommandsData(data)
-        }
+        if (config.cacheEnabled) await cache.saveCommandsData(data)
       }
 
-      img = await render.renderList(catData.get(locale), {
-        showGroups: config.useGroupsLayout
-      })
-
-      if (config.cacheEnabled) {
-        await cache.saveImageCache(cache.getCommandListPath(), img)
-      }
+      img = await render.renderList(catData.get(locale), {showGroups: config.useGroupsLayout})
+      if (config.cacheEnabled) await cache.saveImageCache(cache.getCommandListPath(), img)
     }
 
     return h.image(img, 'image/png')
@@ -233,25 +205,19 @@ export function apply(ctx: Context, config: Config) {
    */
   async function getCmdImg(name: string, locale: string): Promise<Element> {
     cache.updateConfig(locale, style.getThemeId())
-    let img: Buffer = null
 
     // 尝试从缓存获取
-    if (config.cacheEnabled && cache.hasCommandCache(name)) {
-      img = await cache.readImageCache(cache.getCommandImagePath(name))
-    }
+    let img = config.cacheEnabled && cache.hasCommandCache(name)
+      ? await cache.readImageCache(cache.getCommandImagePath(name))
+      : null
 
     // 重新渲染
     if (!img) {
       const data = await cmd.getCommandData(name, locale)
-      if (!data) {
-        throw new Error(`命令 ${name} 不存在或无法访问`)
-      }
+      if (!data) throw new Error(`命令 ${name} 不存在或无法访问`)
 
       img = await render.renderCmd(data, { title: `命令: ${name}` })
-
-      if (config.cacheEnabled) {
-        await cache.saveImageCache(cache.getCommandImagePath(name), img)
-      }
+      if (config.cacheEnabled) await cache.saveImageCache(cache.getCommandImagePath(name), img)
     }
 
     return h.image(img, 'image/png')

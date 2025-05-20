@@ -376,79 +376,46 @@ export class Style {
     // 加载自定义主题
     try {
       const files = await fs.readdir(this.themeDir)
-      const themeFiles = files.filter(file => file.endsWith('.json'))
-
-      await Promise.all(themeFiles.map(async file => {
-        try {
-          const id = file.replace('.json', '')
-          const path = join(this.themeDir, file)
-          const data = JSON.parse(await fs.readFile(path, 'utf8'))
-
-          if (data?.styles) {
-            this.addTheme({
-              id,
-              name: data.name || id,
-              styles: data.styles
-            })
+      await Promise.all(files
+        .filter(file => file.endsWith('.json'))
+        .map(async file => {
+          try {
+            const id = file.replace('.json', '')
+            const data = JSON.parse(await fs.readFile(join(this.themeDir, file), 'utf8'))
+            if (data?.styles) this.addTheme({ id, name: data.name || id, styles: data.styles })
+          } catch (err) {
+            logger.error(`加载主题文件 ${file} 失败:`, err)
           }
-        } catch (err) {
-          logger.error(`加载主题文件 ${file} 失败:`, err)
-        }
-      }))
+        }))
     } catch (err) {
       logger.error('加载自定义主题失败:', err)
     }
   }
 
-  /**
-   * 注册主题
-   */
   public addTheme(theme: Theme): void {
-    if (!theme?.id || !theme.styles) {
-      logger.warn('尝试注册无效主题')
-      return
-    }
-    this.themes.set(theme.id, theme)
+    if (theme?.id && theme.styles) this.themes.set(theme.id, theme)
   }
 
-  /**
-   * 获取当前样式
-   */
   public getStyle(): StyleConfig {
     const theme = this.themes.get(this.curThemeId)
     if (!theme) {
-      logger.warn(`主题 ${this.curThemeId} 不存在，使用默认主题`)
+      logger.error(`主题 ${this.curThemeId} 不存在，使用默认主题`)
       return Style.LIGHT
     }
     return theme.styles
   }
 
-  /**
-   * 更新当前主题
-   */
   public setTheme(themeId: string): boolean {
     if (!this.themes.has(themeId)) {
-      logger.warn(`尝试切换到不存在的主题: ${themeId}`)
+      logger.error(`尝试切换到不存在的主题: ${themeId}`)
       return false
     }
     this.curThemeId = themeId
-    logger.info(`主题已更新: ${themeId}`)
     return true
   }
 
-  /**
-   * 获取当前主题ID
-   */
-  public getThemeId(): string {
-    return this.curThemeId
-  }
-
-  /**
-   * 获取所有主题
-   */
-  public getAvailableThemes(): Theme[] {
-    return Array.from(this.themes.values())
-  }
+  public getThemeId(): string { return this.curThemeId }
+  public getAvailableThemes(): Theme[] { return Array.from(this.themes.values()) }
 
   /**
    * 获取CSS样式

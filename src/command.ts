@@ -43,9 +43,6 @@ export class Command {
     'social': 'forum', 'other': 'more_horiz'
   }
 
-  /**
-   * 创建命令提取器
-   */
   constructor(ctx: Context) {
     this.ctx = ctx
   }
@@ -71,11 +68,9 @@ export class Command {
   public async extractCategories(locale: string): Promise<CategoryData[]> {
     const session = this.createSession(locale)
     const commander = this.ctx.$commander
-    logger.info(`提取命令列表(${locale})，共${commander._commandList.length}个命令`)
 
     // 获取顶级命令
     const roots = commander._commandList.filter((cmd: any) => !cmd.parent)
-    logger.info(`找到 ${roots.length} 个顶级命令`)
 
     // 处理命令
     const cmdsData = (await Promise.all(
@@ -84,7 +79,6 @@ export class Command {
 
     // 排序并分组
     cmdsData.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''))
-    logger.info(`共提取 ${cmdsData.length} 个可见命令`)
 
     return [{
       name: "命令列表",
@@ -110,17 +104,13 @@ export class Command {
     })
 
     // 转换为分组数组并排序
-    const groups: CommandGroup[] = []
-    map.forEach((cmds, name) => {
-      groups.push({
-        name: name.charAt(0).toUpperCase() + name.slice(1), // 格式化分组名
+    return Array.from(map.entries())
+      .map(([name, cmds]) => ({
+        name: name.charAt(0).toUpperCase() + name.slice(1),
         icon: this.getGroupIcon(name),
         commands: cmds
-      })
-    })
-
-    groups.sort((a, b) => a.name.localeCompare(b.name))
-    return groups
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name))
   }
 
   /**
@@ -128,8 +118,6 @@ export class Command {
    */
   private getGroupIcon(name: string): string {
     const key = name.toLowerCase()
-
-    // 检查默认图标
     if (key in this.DEF_GROUPS) return this.DEF_GROUPS[key]
 
     // 根据名称匹配
@@ -188,18 +176,13 @@ export class Command {
           if (!opt) return
           const desc = session.text(opt.descPath ?? [`commands.${command.name}.options.${name}`, ""], opt.params || {})
           if (desc || opt.syntax) {
-            options.push({
-              name,
-              description: desc || "",
-              syntax: opt.syntax || ""
-            })
+            options.push({name, description: desc || "", syntax: opt.syntax || ""})
           }
         }
 
-        if (!('value' in option)) {
-          addOpt(option, option.name)
-        }
+        if (!('value' in option)) addOpt(option, option.name)
 
+        // 处理选项变体
         if (option.variants) {
           for (const val in option.variants) {
             addOpt(option.variants[val], `${option.name}.${val}`)
@@ -251,14 +234,8 @@ export class Command {
    */
   public async getCommandData(name: string, locale: string): Promise<CommandData|null> {
     if (!name) return null
-
     const cmd = this.getCmdObj(name)
-    if (!cmd) {
-      logger.warn(`命令不存在: ${name}`)
-      return null
-    }
-
-    return await this.extractCmdInfo(cmd, this.createSession(locale))
+    return cmd ? await this.extractCmdInfo(cmd, this.createSession(locale)) : null
   }
 
   /**
@@ -296,16 +273,14 @@ export class Command {
 
     // 递归收集
     const collect = (cmd: any) => {
-      if (!cmd?.name) return
-      processed.add(cmd.name)
-      cmd.children?.forEach?.(child => collect(child))
+      if (cmd?.name) {
+        processed.add(cmd.name)
+        cmd.children?.forEach?.(child => collect(child))
+      }
     }
 
     // 处理顶级命令
     this.ctx.$commander._commandList.forEach(cmd => collect(cmd))
-
-    const result = Array.from(processed)
-    logger.info(`收集到 ${result.length} 个命令和子命令`)
-    return result
+    return Array.from(processed)
   }
 }
