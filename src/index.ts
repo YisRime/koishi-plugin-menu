@@ -15,7 +15,6 @@ export interface Config {
   refreshInterval: number
   customIconsEnabled: boolean
   useGroupsLayout: boolean
-  pageTitle: string
 }
 
 export const Config: Schema<Config> = Schema.object({
@@ -33,10 +32,7 @@ export const Config: Schema<Config> = Schema.object({
     .default(true),
   useGroupsLayout: Schema.boolean()
     .description('使用分组布局展示命令')
-    .default(true),
-  pageTitle: Schema.string()
-    .description('页面顶部标题')
-    .default('帮助菜单')
+    .default(true)
 })
 
 /**
@@ -228,7 +224,6 @@ export function apply(ctx: Context, config: Config) {
       }
 
       img = await render.renderList(catData.get(locale), {
-        pageTitle: config.pageTitle,
         showGroups: config.useGroupsLayout
       })
 

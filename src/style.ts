@@ -504,55 +504,6 @@ export class Style {
         padding: ${style.cardPadding};
       }
 
-      /* 页面标题样式 */
-      .page-title {
-        background: ${style.pageTitleBackground};
-        color: ${style.pageTitleColor};
-        padding: ${style.pageTitlePadding};
-        border-radius: ${style.pageTitleBorderRadius};
-        font-size: ${style.pageTitleFontSize};
-        font-weight: ${style.pageTitleFontWeight};
-        margin-bottom: ${style.pageTitleMarginBottom};
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        text-shadow: ${style.headerTextShadow};
-        box-shadow: ${style.cardElevation};
-      }
-      .page-title i {
-        margin-right: 8px;
-        font-size: ${style.pageTitleIconSize};
-        color: ${style.headerIconColor};
-      }
-
-      /* 分组样式 */
-      .command-group {
-        margin-bottom: ${style.groupMarginBottom};
-      }
-      .group-header {
-        background: ${style.groupHeaderBackground};
-        color: ${style.groupHeaderColor};
-        padding: ${style.groupHeaderPadding};
-        border-radius: ${style.groupHeaderBorderRadius};
-        font-size: ${style.groupHeaderFontSize};
-        font-weight: ${style.groupHeaderFontWeight};
-        margin-bottom: 12px;
-        display: flex;
-        align-items: center;
-        text-shadow: ${style.headerTextShadow};
-        box-shadow: ${style.cardElevation};
-      }
-      .group-header i {
-        margin-right: 8px;
-        font-size: ${style.groupIconSize};
-        color: ${style.headerIconColor};
-      }
-      .group-content {
-        display: grid;
-        grid-template-columns: ${style.gridTemplateColumns};
-        gap: ${style.cardGridGap};
-      }
-
       /* 命令容器样式 */
       .commands-card { margin: 0; }
       .category-header {
@@ -777,6 +728,34 @@ export class Style {
         .command-item {
           padding: 10px;
         }
+      }
+
+      /* 分组相关设置 */
+      .command-group {
+        margin-bottom: ${style.groupMarginBottom};
+      }
+      .group-header {
+        background: ${style.groupHeaderBackground};
+        color: ${style.groupHeaderColor};
+        padding: ${style.groupHeaderPadding};
+        border-radius: ${style.groupHeaderBorderRadius};
+        font-size: ${style.groupHeaderFontSize};
+        font-weight: ${style.groupHeaderFontWeight};
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        text-shadow: ${style.headerTextShadow};
+        box-shadow: ${style.cardElevation};
+      }
+      .group-header i {
+        margin-right: 8px;
+        font-size: ${style.groupIconSize};
+        color: ${style.headerIconColor};
+      }
+      .group-content {
+        display: grid;
+        grid-template-columns: ${style.gridTemplateColumns};
+        gap: ${style.cardGridGap};
       }
     `
   }

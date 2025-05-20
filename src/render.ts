@@ -8,7 +8,6 @@ const log = new Logger('menu:render')
 export interface RenderConfig {
   title?: string
   description?: string
-  pageTitle?: string
   showGroups?: boolean
 }
 
@@ -41,7 +40,7 @@ export class Render {
   private readonly UI_ICONS = {
     categoryHeader: 'menu_book', options: 'tune',
     examples: 'code', subcommands: 'account_tree',
-    badge: 'label', tag: 'local_offer', pageTitle: 'help_center'
+    badge: 'label', tag: 'local_offer'
   }
 
   /**
@@ -128,14 +127,6 @@ export class Render {
 
     const showGroups = config.showGroups !== false
 
-    // 页面标题
-    const titleHTML = config.pageTitle ? `
-      <div class="page-title">
-        <i class="material-icons">${this.UI_ICONS.pageTitle}</i>
-        ${config.pageTitle}
-      </div>
-    ` : ''
-
     // 内容区域
     const contentHTML = showGroups && categories[0]?.groups?.length
       ? this.renderGroups(categories[0].groups)
@@ -149,7 +140,7 @@ export class Render {
           </div>
         </div>`
 
-    return this.wrap(titleHTML + contentHTML)
+    return this.wrap(contentHTML)
   }
 
   /**
@@ -437,7 +428,6 @@ export class Render {
    */
   public async renderList(categories: CategoryData[], config: RenderConfig = {}): Promise<Buffer> {
     const cfg = {
-      pageTitle: "帮助菜单",
       title: "命令列表",
       showGroups: true,
       ...config
