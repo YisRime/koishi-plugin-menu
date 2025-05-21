@@ -6,7 +6,6 @@ export interface StyleConfig {
   // 基础颜色
   backgroundColor: string
   titleColor: string
-  headerColor: string
   fontFamily: string
   commandColor: string
   descriptionColor: string
@@ -16,7 +15,6 @@ export interface StyleConfig {
   borderColor: string
   cardShadow: string
   subCommandBorderColor: string
-  categoryHeaderBackground: string
   commandHoverBackground: string
   badgeBackground: string
   badgeColor: string
@@ -28,7 +26,6 @@ export interface StyleConfig {
   // 圆角和间距设置
   cardBorderRadius: string
   commandItemBorderRadius: string
-  headerBorderRadius: string
   badgeBorderRadius: string
   tagBorderRadius: string
   containerPadding: string
@@ -43,8 +40,6 @@ export interface StyleConfig {
   // 图标设置
   iconColor: string
   iconSize: string
-  headerIconColor: string
-  headerIconSize: string
 
   // 高级卡片效果
   cardElevation: string
@@ -55,27 +50,17 @@ export interface StyleConfig {
   mobileBreakpoint: string
 
   // 分组相关设置
-  groupHeaderBackground: string
-  groupHeaderColor: string
-  groupHeaderBorderRadius: string
-  groupHeaderPadding: string
+  groupTitleBackground: string
+  groupTitleTextColor: string
+  groupTitleBorderRadius: string
+  groupTitlePadding: string
   groupMarginBottom: string
-  groupIconSize: string
-  groupHeaderFontSize: string
-  groupHeaderFontWeight: string
-
-  // 页面标题设置
-  pageTitleBackground: string
-  pageTitleColor: string
-  pageTitlePadding: string
-  pageTitleBorderRadius: string
-  pageTitleFontSize: string
-  pageTitleFontWeight: string
-  pageTitleMarginBottom: string
-  pageTitleIconSize: string
-
-  // 卡片网格设置
-  cardGridGap: string
+  groupTitleIconSize: string
+  groupTitleIconColor: string
+  groupTitleFontSize: string
+  groupTitleFontWeight: string
+  groupContentPadding: string
+  groupGridGap: string
 
   // 菜单项目设置
   menuItemIconSize: string
@@ -97,7 +82,6 @@ export class Style {
   private static readonly LIGHT: StyleConfig = {
     backgroundColor: "#f8f9fa",
     titleColor: "#333333",
-    headerColor: "#2196f3",
     fontFamily: '"Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif',
     commandColor: "#333",
     descriptionColor: "rgba(0,0,0,0.65)",
@@ -107,7 +91,6 @@ export class Style {
     borderColor: "rgba(128,128,128,0.15)",
     cardShadow: "0 2px 8px rgba(0,0,0,0.12)",
     subCommandBorderColor: "rgba(33,150,243,0.2)",
-    categoryHeaderBackground: "linear-gradient(135deg, #42a5f5, #2196f3)",
     commandHoverBackground: "rgba(33,150,243,0.05)",
     badgeBackground: "#2196f3",
     badgeColor: "white",
@@ -118,11 +101,10 @@ export class Style {
 
     // 圆角和间距设置
     cardBorderRadius: "12px",
-    commandItemBorderRadius: "8px",
-    headerBorderRadius: "12px 12px 0 0",
+    commandItemBorderRadius: "10px",
     badgeBorderRadius: "12px",
     tagBorderRadius: "6px",
-    containerPadding: "12px",
+    containerPadding: "16px",
     cardPadding: "0",
     commandItemPadding: "12px",
 
@@ -134,8 +116,6 @@ export class Style {
     // 图标设置
     iconColor: "#2196f3",
     iconSize: "16px",
-    headerIconColor: "white",
-    headerIconSize: "18px",
 
     // 高级卡片效果
     cardElevation: "0 4px 12px rgba(0,0,0,0.1)",
@@ -146,27 +126,17 @@ export class Style {
     mobileBreakpoint: "480px",
 
     // 分组相关设置
-    groupHeaderBackground: "linear-gradient(135deg, #64b5f6, #1976d2)",
-    groupHeaderColor: "white",
-    groupHeaderBorderRadius: "10px",
-    groupHeaderPadding: "10px 16px",
-    groupMarginBottom: "24px",
-    groupIconSize: "20px",
-    groupHeaderFontSize: "16px",
-    groupHeaderFontWeight: "500",
-
-    // 页面标题设置
-    pageTitleBackground: "linear-gradient(135deg, #2196f3, #0d47a1)",
-    pageTitleColor: "white",
-    pageTitlePadding: "16px 20px",
-    pageTitleBorderRadius: "12px",
-    pageTitleFontSize: "18px",
-    pageTitleFontWeight: "600",
-    pageTitleMarginBottom: "20px",
-    pageTitleIconSize: "24px",
-
-    // 卡片网格设置
-    cardGridGap: "12px",
+    groupTitleBackground: "transparent",
+    groupTitleTextColor: "#1976d2",
+    groupTitleBorderRadius: "8px",
+    groupTitlePadding: "12px 16px",
+    groupMarginBottom: "20px",
+    groupTitleIconSize: "22px",
+    groupTitleIconColor: "#1976d2",
+    groupTitleFontSize: "18px",
+    groupTitleFontWeight: "600",
+    groupContentPadding: "0px",
+    groupGridGap: "12px",
 
     // 菜单项目设置
     menuItemIconSize: "18px",
@@ -178,7 +148,6 @@ export class Style {
   private static readonly DARK: StyleConfig = {
     backgroundColor: "#121212",
     titleColor: "#e0e0e0",
-    headerColor: "#1976d2",
     fontFamily: '"Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif',
     commandColor: "#ddd",
     descriptionColor: "rgba(255,255,255,0.7)",
@@ -188,7 +157,6 @@ export class Style {
     borderColor: "rgba(255,255,255,0.1)",
     cardShadow: "0 2px 8px rgba(0,0,0,0.5)",
     subCommandBorderColor: "rgba(33,150,243,0.3)",
-    categoryHeaderBackground: "linear-gradient(135deg, #1976d2, #0d47a1)",
     commandHoverBackground: "rgba(25,118,210,0.15)",
     badgeBackground: "#1976d2",
     badgeColor: "white",
@@ -199,11 +167,10 @@ export class Style {
 
     // 圆角和间距设置
     cardBorderRadius: "12px",
-    commandItemBorderRadius: "8px",
-    headerBorderRadius: "12px 12px 0 0",
+    commandItemBorderRadius: "10px",
     badgeBorderRadius: "12px",
     tagBorderRadius: "6px",
-    containerPadding: "12px",
+    containerPadding: "16px",
     cardPadding: "0",
     commandItemPadding: "12px",
 
@@ -215,8 +182,6 @@ export class Style {
     // 图标设置
     iconColor: "#42a5f5",
     iconSize: "16px",
-    headerIconColor: "white",
-    headerIconSize: "18px",
 
     // 高级卡片效果
     cardElevation: "0 4px 12px rgba(0,0,0,0.25)",
@@ -227,27 +192,17 @@ export class Style {
     mobileBreakpoint: "480px",
 
     // 分组相关设置
-    groupHeaderBackground: "linear-gradient(135deg, #1976d2, #0d47a1)",
-    groupHeaderColor: "white",
-    groupHeaderBorderRadius: "10px",
-    groupHeaderPadding: "10px 16px",
-    groupMarginBottom: "24px",
-    groupIconSize: "20px",
-    groupHeaderFontSize: "16px",
-    groupHeaderFontWeight: "500",
-
-    // 页面标题设置
-    pageTitleBackground: "linear-gradient(135deg, #1976d2, #0a3880)",
-    pageTitleColor: "white",
-    pageTitlePadding: "16px 20px",
-    pageTitleBorderRadius: "12px",
-    pageTitleFontSize: "18px",
-    pageTitleFontWeight: "600",
-    pageTitleMarginBottom: "20px",
-    pageTitleIconSize: "24px",
-
-    // 卡片网格设置
-    cardGridGap: "12px",
+    groupTitleBackground: "transparent",
+    groupTitleTextColor: "#64b5f6",
+    groupTitleBorderRadius: "8px",
+    groupTitlePadding: "12px 16px",
+    groupMarginBottom: "20px",
+    groupTitleIconSize: "22px",
+    groupTitleIconColor: "#64b5f6",
+    groupTitleFontSize: "18px",
+    groupTitleFontWeight: "600",
+    groupContentPadding: "0px",
+    groupGridGap: "12px",
 
     // 菜单项目设置
     menuItemIconSize: "18px",
@@ -259,7 +214,6 @@ export class Style {
   private static readonly TEMPLATE: StyleConfig = {
     backgroundColor: "#fffbf0",
     titleColor: "#795548",
-    headerColor: "#ff9800",
     fontFamily: '"Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif',
     commandColor: "#4e342e",
     descriptionColor: "rgba(0,0,0,0.65)",
@@ -269,7 +223,6 @@ export class Style {
     borderColor: "rgba(121,85,72,0.15)",
     cardShadow: "0 2px 8px rgba(121,85,72,0.15)",
     subCommandBorderColor: "rgba(255,152,0,0.3)",
-    categoryHeaderBackground: "linear-gradient(135deg, #ff9800, #ef6c00)",
     commandHoverBackground: "rgba(255,152,0,0.08)",
     badgeBackground: "#e65100",
     badgeColor: "white",
@@ -280,8 +233,7 @@ export class Style {
 
     // 圆角和间距设置
     cardBorderRadius: "16px",
-    commandItemBorderRadius: "10px",
-    headerBorderRadius: "16px 16px 0 0",
+    commandItemBorderRadius: "12px",
     badgeBorderRadius: "16px",
     tagBorderRadius: "8px",
     containerPadding: "16px",
@@ -296,8 +248,6 @@ export class Style {
     // 图标设置
     iconColor: "#ff9800",
     iconSize: "16px",
-    headerIconColor: "white",
-    headerIconSize: "18px",
 
     // 高级卡片效果
     cardElevation: "0 4px 16px rgba(121,85,72,0.2)",
@@ -308,27 +258,17 @@ export class Style {
     mobileBreakpoint: "480px",
 
     // 分组相关设置
-    groupHeaderBackground: "linear-gradient(135deg, #ffb74d, #ff9800)",
-    groupHeaderColor: "white",
-    groupHeaderBorderRadius: "12px",
-    groupHeaderPadding: "10px 16px",
-    groupMarginBottom: "24px",
-    groupIconSize: "20px",
-    groupHeaderFontSize: "16px",
-    groupHeaderFontWeight: "500",
-
-    // 页面标题设置
-    pageTitleBackground: "linear-gradient(135deg, #ff9800, #e65100)",
-    pageTitleColor: "white",
-    pageTitlePadding: "16px 20px",
-    pageTitleBorderRadius: "16px",
-    pageTitleFontSize: "18px",
-    pageTitleFontWeight: "600",
-    pageTitleMarginBottom: "20px",
-    pageTitleIconSize: "24px",
-
-    // 卡片网格设置
-    cardGridGap: "14px",
+    groupTitleBackground: "transparent",
+    groupTitleTextColor: "#ef6c00",
+    groupTitleBorderRadius: "10px",
+    groupTitlePadding: "12px 16px",
+    groupMarginBottom: "20px",
+    groupTitleIconSize: "22px",
+    groupTitleIconColor: "#ef6c00",
+    groupTitleFontSize: "18px",
+    groupTitleFontWeight: "600",
+    groupContentPadding: "0px",
+    groupGridGap: "14px",
 
     // 菜单项目设置
     menuItemIconSize: "18px",
@@ -363,7 +303,6 @@ export class Style {
           JSON.stringify({ id: 'custom', name: '模板主题', styles: Style.TEMPLATE }, null, 2),
           'utf8'
         )
-        logger.info('已保存模板主题')
       }
     } catch (err) {
       logger.error('保存模板主题失败:', err)
@@ -430,58 +369,31 @@ export class Style {
         background-color: ${style.backgroundColor};
         padding: ${style.containerPadding};
         font-family: ${style.fontFamily};
-        border-radius: ${style.cardBorderRadius};
         overflow: hidden;
       }
 
-      /* 卡片样式 */
-      .material-card {
-        border-radius: ${style.cardBorderRadius};
-        background-color: ${style.cardBackground};
-        box-shadow: ${style.cardShadow};
-        overflow: hidden;
-        padding: ${style.cardPadding};
-      }
-
-      /* 命令容器样式 */
-      .commands-card { margin: 0; }
-      .category-header {
-        padding: 14px 16px;
-        background: ${style.categoryHeaderBackground};
-        color: white;
-        font-size: 16px;
-        font-weight: 500;
-        text-align: center;
-        border-radius: ${style.headerBorderRadius};
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        text-shadow: ${style.headerTextShadow};
-      }
-      .category-header i {
-        margin-right: 8px;
-        font-size: ${style.headerIconSize};
-        color: ${style.headerIconColor};
-      }
-      .commands-container { padding: 12px; }
-
-      /* 命令项样式 */
+      /* 命令项样式 (Command Card) */
       .command-item {
         padding: ${style.commandItemPadding};
-        margin-bottom: 8px;
         border-radius: ${style.commandItemBorderRadius};
         border: 1px solid ${style.borderColor};
         background-color: ${style.cardBackground};
+        box-shadow: ${style.cardShadow};
         position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
       }
       .command-item:hover {
         background-color: ${style.commandHoverBackground};
+        transform: translateY(-2px);
+        box-shadow: ${style.cardElevation};
       }
       .command-header {
         margin-bottom: 6px;
         display: flex;
         align-items: center;
-        justify-content: space-between;
       }
       .command-name {
         font-weight: 500;
@@ -491,7 +403,7 @@ export class Style {
         align-items: center;
       }
       .command-name i {
-        margin-right: 6px;
+        margin-right: 8px;
         font-size: ${style.menuItemIconSize};
         color: ${style.iconColor};
       }
@@ -500,6 +412,7 @@ export class Style {
         font-size: ${style.menuItemDescriptionFontSize};
         color: ${style.descriptionColor};
         line-height: 1.5;
+        flex-grow: 1;
       }
 
       /* 标签和徽章样式 */
@@ -626,14 +539,6 @@ export class Style {
         line-height: 1.4;
       }
 
-      /* 命令网格布局 */
-      .command-row {
-        display: grid;
-        grid-template-columns: ${style.gridTemplateColumns};
-        gap: ${style.gridGap};
-        margin-bottom: 8px;
-      }
-
       /* 图标字体 */
       @font-face {
         font-family: 'Material Icons';
@@ -658,14 +563,21 @@ export class Style {
 
       /* 响应式布局 */
       @media (max-width: ${style.mobileBreakpoint}) {
-        .command-row, .options-grid, .subcommand-list, .group-content {
+        .options-grid, .subcommand-list, .group-content {
           grid-template-columns: 1fr;
         }
         .ocr-container {
-          padding: 8px;
+          padding: ${Number.parseInt(style.containerPadding) / 2}px;
         }
         .command-item {
-          padding: 10px;
+          padding: ${Number.parseInt(style.commandItemPadding) / 1.2}px;
+        }
+        .group-title-header {
+          padding: ${Number.parseInt(style.groupTitlePadding) / 1.2}px;
+          font-size: ${Number.parseInt(style.groupTitleFontSize) * 0.9}px;
+        }
+        .group-title-header i {
+          font-size: ${Number.parseInt(style.groupTitleIconSize) * 0.9}px;
         }
       }
 
@@ -673,28 +585,28 @@ export class Style {
       .command-group {
         margin-bottom: ${style.groupMarginBottom};
       }
-      .group-header {
-        background: ${style.groupHeaderBackground};
-        color: ${style.groupHeaderColor};
-        padding: ${style.groupHeaderPadding};
-        border-radius: ${style.groupHeaderBorderRadius};
-        font-size: ${style.groupHeaderFontSize};
-        font-weight: ${style.groupHeaderFontWeight};
+      .group-title-header {
+        background: ${style.groupTitleBackground};
+        color: ${style.groupTitleTextColor};
+        padding: ${style.groupTitlePadding};
+        border-radius: ${style.groupTitleBorderRadius};
+        font-size: ${style.groupTitleFontSize};
+        font-weight: ${style.groupTitleFontWeight};
         margin-bottom: 12px;
         display: flex;
         align-items: center;
         text-shadow: ${style.headerTextShadow};
-        box-shadow: ${style.cardElevation};
       }
-      .group-header i {
-        margin-right: 8px;
-        font-size: ${style.groupIconSize};
-        color: ${style.headerIconColor};
+      .group-title-header i {
+        margin-right: 10px;
+        font-size: ${style.groupTitleIconSize};
+        color: ${style.groupTitleIconColor};
       }
       .group-content {
         display: grid;
         grid-template-columns: ${style.gridTemplateColumns};
-        gap: ${style.cardGridGap};
+        gap: ${style.groupGridGap};
+        padding: ${style.groupContentPadding};
       }
     `
   }

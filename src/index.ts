@@ -48,9 +48,10 @@ export function apply(ctx: Context, config: Config) {
   let catData: Map<string, CategoryData[]> = new Map()
   let timer: NodeJS.Timeout = null
   let ready = false
+  let groupsData = null
 
   // 注册命令
-  ctx.command('menu [command:string]', '显示命令帮助')
+  ctx.command('menu [command:text]', '显示命令帮助')
     .userFields(['authority'])
     .option('refresh', '-r 刷新命令缓存')
     .action(async ({ session, options, args }) => {
@@ -68,7 +69,7 @@ export function apply(ctx: Context, config: Config) {
 
       try {
         return args[0]
-          ? await getCmdImg(args[0], locale)
+          ? await getCmdImg(args[0].trim().replace(/\s+/g, "."), locale) // 将空格替换为点
           : await getListImg(locale)
       } catch (error) {
         logger.error('处理菜单命令失败', error)
@@ -80,6 +81,7 @@ export function apply(ctx: Context, config: Config) {
   ctx.on('ready', async () => {
     try {
       // 并行初始化
+      logger.info('菜单插件开始初始化')
       await Promise.all([cache.initialize(), style.initialize()])
       render = new Render(ctx, style)
 
@@ -102,11 +104,33 @@ export function apply(ctx: Context, config: Config) {
         if (config.cacheEnabled) await cache.saveCommandsData(data)
       }
 
+      // 加载分组配置
+      groupsData = await cache.loadGroupsData()
+
+      // 如果没有分组数据或加载失败，创建并保存默认分组
+      if (!groupsData) {
+        groupsData = {
+          groups: [
+            {
+              name: "所有命令",
+              icon: "apps",
+              commands: []  // 空数组表示包含所有命令
+            }
+          ],
+          version: 1
+        };
+        await cache.saveGroupsData(groupsData);
+      }
+
       // 准备缓存
       if (config.cacheEnabled) {
         // 命令列表缓存
         if (!cache.hasCommandListCache()) {
-          const img = await render.renderList(catData.get(defLocale))
+          const img = await render.renderList(catData.get(defLocale), {
+            showGroups: config.useGroupsLayout,
+            title: "命令列表",
+            groupsData: groupsData // 传递分组数据
+          })
           await cache.saveImageCache(cache.getCommandListPath(), img)
         }
         // 预渲染命令
@@ -168,7 +192,14 @@ export function apply(ctx: Context, config: Config) {
 
     if (config.cacheEnabled) await cache.saveCommandsData(data)
 
-    const img = await render.renderList(catData.get(locale))
+    // 重新加载分组数据
+    groupsData = await cache.loadGroupsData()
+
+    const img = await render.renderList(catData.get(locale), {
+      showGroups: config.useGroupsLayout,
+      title: "命令列表",
+      groupsData: groupsData
+    })
     await cache.saveImageCache(cache.getCommandListPath(), img)
     logger.info(`已刷新缓存(${locale}, ${style.getThemeId()})`)
   }
@@ -179,6 +210,11 @@ export function apply(ctx: Context, config: Config) {
   async function getListImg(locale: string): Promise<Element> {
     cache.updateConfig(locale, style.getThemeId())
     let img: Buffer = null
+
+    // 尝试加载分组数据
+    if (!groupsData) {
+      groupsData = await cache.loadGroupsData()
+    }
 
     // 尝试从缓存获取
     if (config.cacheEnabled && cache.hasCommandListCache()) {
@@ -193,7 +229,11 @@ export function apply(ctx: Context, config: Config) {
         if (config.cacheEnabled) await cache.saveCommandsData(data)
       }
 
-      img = await render.renderList(catData.get(locale), {showGroups: config.useGroupsLayout})
+      img = await render.renderList(catData.get(locale), {
+        showGroups: config.useGroupsLayout,
+        title: "命令列表",
+        groupsData: groupsData // 传递分组数据
+      })
       if (config.cacheEnabled) await cache.saveImageCache(cache.getCommandListPath(), img)
     }
 

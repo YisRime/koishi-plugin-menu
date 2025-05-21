@@ -3,6 +3,17 @@ import { resolve, join } from 'path'
 import { CategoryData } from './command'
 import { logger } from './index'
 
+// 添加分组配置接口
+export interface GroupConfig {
+  name: string;
+  icon: string;
+  commands: string[];  // 命令名称列表
+}
+
+export interface GroupsData {
+  groups: GroupConfig[];
+  version: number;     // 版本号，方便未来扩展
+}
 /**
  * 缓存管理类
  */
@@ -69,10 +80,89 @@ export class Cache {
     }
   }
 
+  /**
+   * 简化命令数据结构
+   */
+  private simplifyCommandData(data: CategoryData[]): CategoryData[] {
+    // 创建深拷贝以避免修改原始数据
+    const simplifiedData = JSON.parse(JSON.stringify(data));
+
+    // 递归处理所有命令
+    const processCommands = (commands: any[]) => {
+      if (!commands?.length) return;
+
+      for (const cmd of commands) {
+        // 简化描述字段
+        if (Array.isArray(cmd.description)) {
+          let simpleDesc = '';
+          for (const desc of cmd.description) {
+            if (desc && typeof desc === 'object' && desc.attrs?.content) {
+              simpleDesc += desc.attrs.content + ' ';
+            } else if (typeof desc === 'string') {
+              simpleDesc += desc + ' ';
+            }
+          }
+          cmd.description = simpleDesc.trim();
+        }
+
+        // 简化 usage 字段 - 与 description 类似的处理
+        if (Array.isArray(cmd.usage)) {
+          let simpleUsage = '';
+          for (const usage of cmd.usage) {
+            if (usage && typeof usage === 'object' && usage.attrs?.content) {
+              simpleUsage += usage.attrs.content + '\n';
+            } else if (typeof usage === 'string') {
+              simpleUsage += usage + '\n';
+            }
+          }
+          cmd.usage = simpleUsage.trim();
+        }
+
+        // 处理选项描述
+        if (cmd.options?.length) {
+          for (const opt of cmd.options) {
+            if (Array.isArray(opt.description)) {
+              let simpleOptDesc = '';
+              for (const desc of opt.description) {
+                if (desc && typeof desc === 'object' && desc.attrs?.content) {
+                  simpleOptDesc += desc.attrs.content + ' ';
+                } else if (typeof desc === 'string') {
+                  simpleOptDesc += desc + ' ';
+                }
+              }
+              opt.description = simpleOptDesc.trim();
+            }
+          }
+        }
+
+        // 递归处理子命令
+        if (cmd.subCommands?.length) {
+          processCommands(cmd.subCommands);
+        }
+      }
+    };
+
+    // 处理每个分类中的命令
+    for (const category of simplifiedData) {
+      processCommands(category.commands);
+
+      // 处理分组中的命令
+      if (category.groups?.length) {
+        for (const group of category.groups) {
+          processCommands(group.commands);
+        }
+      }
+    }
+
+    return simplifiedData;
+  }
+
   public async saveCommandsData(data: CategoryData[]): Promise<boolean> {
     if (!data) return false
     try {
-      await this.safeWrite(this.getDataPath(), JSON.stringify(data, null, 2))
+      // 在保存前简化数据结构
+      const simplifiedData = this.simplifyCommandData(data);
+      await this.safeWrite(this.getDataPath(), JSON.stringify(simplifiedData, null, 2))
       return true
     } catch (err) {
       logger.error(`保存命令数据失败: ${this.locale}`, err)
@@ -158,5 +248,70 @@ export class Cache {
 
   public getBaseDir(): string {
     return this.baseDir
+  }
+  private getGroupsDataPath(): string {
+    return join(this.dataDir, 'groups.json')
+  }
+
+  /**
+   * 保存分组配置
+   */
+  public async saveGroupsData(data: GroupsData): Promise<boolean> {
+    if (!data) return false
+    try {
+      await this.safeWrite(this.getGroupsDataPath(), JSON.stringify(data, null, 2))
+      return true
+    } catch (err) {
+      logger.error(`保存分组数据失败`, err)
+      return false
+    }
+  }
+
+  /**
+   * 加载分组配置
+   */
+  public async loadGroupsData(): Promise<GroupsData|null> {
+    const path = this.getGroupsDataPath()
+    try {
+      if (existsSync(path)) {
+        const content = await fs.readFile(path, 'utf8')
+        if (!content || content.trim() === '') {
+          // 文件存在但为空，返回默认配置
+          return this.getDefaultGroups()
+        }
+
+        try {
+          const data = JSON.parse(content)
+          if (data && Array.isArray(data.groups)) {
+            return data as GroupsData
+          }
+        } catch (parseError) {
+          logger.error(`解析分组数据失败: ${parseError.message}`)
+          // JSON解析错误，返回默认配置
+          return this.getDefaultGroups()
+        }
+      }
+    } catch (err) {
+      logger.error(`加载分组数据失败: ${err}`)
+    }
+
+    // 返回默认分组配置
+    return this.getDefaultGroups()
+  }
+
+  /**
+   * 获取默认分组配置
+   */
+  private getDefaultGroups(): GroupsData {
+    return {
+      groups: [
+        {
+          name: "所有命令",
+          icon: "apps",
+          commands: [] // 空数组表示包含所有命令
+        }
+      ],
+      version: 1
+    }
   }
 }

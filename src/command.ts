@@ -9,13 +9,11 @@ export interface CommandOption {
 
 export interface CommandData {
   name: string
-  displayName: string
   description: string
   usage: string
   options: CommandOption[]
   examples: string[]
   subCommands?: CommandData[]
-  group?: string
   icon?: string
 }
 
@@ -77,88 +75,16 @@ export class Command {
       roots.map(cmd => this.extractCmdInfo(cmd, session))
     )).filter(Boolean)
 
-    // 排序并分组
-    cmdsData.sort((a, b) => (a.displayName || '').localeCompare(b.displayName || ''))
+    // 按名称排序
+    cmdsData.sort((a, b) => a.name.localeCompare(b.name))
 
+    // 返回命令数据
     return [{
       name: "命令列表",
-      commands: cmdsData,
-      groups: this.groupCmds(cmdsData)
+      commands: cmdsData
     }]
   }
 
-  /**
-   * 分组命令
-   */
-  private groupCmds(cmds: CommandData[]): CommandGroup[] {
-    if (!cmds?.length) return []
-
-    // 创建分组映射
-    const map = new Map<string, CommandData[]>()
-
-    // 分配命令到分组
-    cmds.forEach(cmd => {
-      const group = cmd.group || this.getGroup(cmd.name)
-      if (!map.has(group)) map.set(group, [])
-      map.get(group).push(cmd)
-    })
-
-    // 转换为分组数组并排序
-    return Array.from(map.entries())
-      .map(([name, cmds]) => ({
-        name: name.charAt(0).toUpperCase() + name.slice(1),
-        icon: this.getGroupIcon(name),
-        commands: cmds
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name))
-  }
-
-  /**
-   * 获取分组图标
-   */
-  private getGroupIcon(name: string): string {
-    const key = name.toLowerCase()
-    if (key in this.DEF_GROUPS) return this.DEF_GROUPS[key]
-
-    // 根据名称匹配
-    switch (key) {
-      case 'bot': return 'smart_toy'
-      case 'chat': return 'chat'
-      case 'image': return 'image'
-      case 'video': return 'video_library'
-      case 'plugin': return 'extension'
-      case 'info': return 'info'
-      case 'help': return 'help'
-      case 'tools': return 'handyman'
-      case 'settings': return 'settings'
-      case 'commands': return 'terminal'
-      default: return 'widgets'
-    }
-  }
-
-  /**
-   * 确定命令分组
-   */
-  private getGroup(name: string): string {
-    if (!name) return 'other'
-
-    const key = name.toLowerCase()
-
-    // 根据名称特征分组
-    if (key.startsWith('admin') || key.includes('.admin')) return 'admin'
-    if (key.startsWith('user') || key.includes('.user') || key.includes('profile')) return 'user'
-    if (key.startsWith('game') || key.includes('.game') || key.includes('play')) return 'game'
-    if (key.startsWith('music') || key.includes('song') || key.includes('play.')) return 'music'
-    if (key.startsWith('image') || key.includes('pic') || key.includes('photo')) return 'media'
-    if (key.startsWith('video') || key.includes('movie')) return 'media'
-    if (key.startsWith('search') || key.includes('find')) return 'search'
-    if (key.startsWith('system') || key.includes('config') || key.includes('setting')) return 'system'
-    if (key.startsWith('util') || key.includes('tool')) return 'utility'
-    if (key.startsWith('fun') || key.includes('joke') || key.includes('meme')) return 'fun'
-    if (key.startsWith('social') || key.includes('chat') || key.includes('message')) return 'social'
-
-    return 'other'
-  }
 
   /**
    * 提取命令信息
@@ -215,13 +141,11 @@ export class Command {
       // 返回命令数据
       return {
         name: command.name,
-        displayName: command.displayName || command.name,
         description: desc || "",
         usage,
         options,
         examples,
-        subCommands: subs?.length > 0 ? subs : undefined,
-        group: this.getGroup(command.name)
+        subCommands: subs?.length > 0 ? subs : undefined
       }
     } catch (error) {
       logger.error(`提取命令 ${command?.name || '未知'} 失败:`, error)

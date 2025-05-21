@@ -8,6 +8,7 @@ export interface RenderConfig {
   title?: string
   description?: string
   showGroups?: boolean
+  groupsData?: any // 自定义分组数据
 }
 
 /**
@@ -35,7 +36,8 @@ export class Render {
     fun: 'mood', social: 'forum', other: 'more_horiz'
   }
   private readonly UI_ICONS = {
-    categoryHeader: 'menu_book', options: 'tune',
+    // categoryHeader: 'menu_book', // Removed
+    options: 'tune',
     examples: 'code', subcommands: 'account_tree',
     badge: 'label', tag: 'local_offer'
   }
@@ -90,36 +92,56 @@ export class Render {
   }
 
   public genListHTML(categories: CategoryData[], config: RenderConfig = {}): string {
-    if (!categories?.length) {
-      logger.warn('无效的分类数据')
-      categories = [{ name: '命令列表', commands: [] }]
+    if (!categories?.length || !categories[0]?.commands?.length) {
+      logger.warn('无效的分类数据或无命令')
+      return this.wrap('<div>没有可显示的命令。</div>');
     }
 
-    const showGroups = config.showGroups !== false
+    const showGroups = config.showGroups !== false // Default to true if not specified
 
-    // 内容区域
-    const contentHTML = showGroups && categories[0]?.groups?.length
-      ? this.renderGroups(categories[0].groups)
-      : `<div class="material-card commands-card">
-          <div class="category-header">
-            <i class="material-icons">${this.UI_ICONS.categoryHeader}</i>
-            ${config.title || "命令列表"}
-          </div>
-          <div class="commands-container">
-            ${this.renderCmdGrid(categories[0]?.commands || [])}
-          </div>
-        </div>`
+    // 使用分组配置
+    if (showGroups) {
+      return this.wrap(this.renderGroupsFromConfig(categories[0].commands, config.groupsData));
+    } else {
+      // 无分组模式，所有命令平铺展示
+      return this.wrap(`<div class="group-content">
+        ${this.renderCmdGrid(categories[0].commands)}
+      </div>`);
+    }
+  }
 
-    return this.wrap(contentHTML)
+  private renderGroupsFromConfig(commands: CommandData[], groupsData: any): string {
+    if (!groupsData?.groups?.length) return this.renderCmdGrid(commands);
+
+    return groupsData.groups.map(group => {
+      // 筛选该分组下的命令
+      const groupCommands = group.commands.length === 0
+        ? commands // 空数组表示包含所有命令
+        : commands.filter(cmd => group.commands.includes(cmd.name));
+
+      if (!groupCommands.length) return '';
+
+      return `
+        <div class="command-group">
+          <div class="group-title-header">
+            <i class="material-icons">${this.GROUP_ICONS[group.icon] || this.CMD_ICONS[group.icon] || this.GROUP_ICONS.default}</i>
+            <span>${group.name}</span>
+          </div>
+          <div class="group-content">
+            ${groupCommands.map(cmd => this.renderCmdCard(cmd)).join('')}
+          </div>
+        </div>
+      `;
+    }).join('');
   }
 
   private renderGroups(groups: CommandGroup[]): string {
     if (!groups?.length) return ''
     return groups.map(group => `
       <div class="command-group">
-        <div class="group-header">
+        <div class="group-title-header">
           <i class="material-icons">${this.GROUP_ICONS[group.icon] || this.CMD_ICONS[group.icon] || this.GROUP_ICONS.default}</i>
-          ${group.name}
+          <span>${group.name}</span>
         </div>
         <div class="group-content">
           ${group.commands.map(cmd => this.renderCmdCard(cmd)).join('')}
@@ -131,15 +153,12 @@ export class Render {
   public genCmdHTML(cmd: CommandData, config: RenderConfig = {}): string {
     if (!cmd) return this.wrap('<div>无法显示命令数据</div>')
 
-    const content = `<div class="material-card commands-card">
-      <div class="category-header">
-        <i class="material-icons">${this.getCmdIcon(cmd.name)}</i>
-        ${config.title || `命令: ${cmd.displayName || cmd.name || ''}`}
-      </div>
-      <div class="commands-container">
-        ${this.renderCmdDetail(cmd)}
-      </div>
-    </div>`
+    const content = `
+      <div class="command-group">
+        <div class="material-card commands-card" style="padding: 16px; background-color: ${this.style.getStyle().secondaryBackground}; border-radius: ${this.style.getStyle().cardBorderRadius};">
+          ${this.renderCmdDetail(cmd)}
+        </div>
+      </div>`;
 
     return this.wrap(content)
   }
@@ -149,16 +168,18 @@ export class Render {
   }
 
   private renderCmdGrid(commands: CommandData[]): string {
-    const parents = commands.filter(cmd => cmd.subCommands?.length > 0)
-    const regular = commands.filter(cmd => !cmd.subCommands?.length)
+    // This function is now primarily used if NOT using the group structure,
+    // or if a group itself has sub-groupings that need a grid.
+    // For the main group.commands, renderCmdCard is called directly in renderGroups.
+    const regular = commands.filter(cmd => !cmd.subCommands?.length) // Simplified: render all as cards
 
     return `
       ${regular.length > 0 ? `
-        <div class="command-row">
           ${regular.map(cmd => this.renderCmdCard(cmd)).join("")}
-        </div>` : ''}
-      ${parents.map(cmd => this.renderParentCmd(cmd)).join("")}
+        ` : '<div>该分组下暂无命令。</div>'}
     `
+    // Parent command rendering logic might be too complex for simple cards in a grid.
+    // Consider simplifying parent command display within cards or rely on detail view.
   }
 
   private getCmdIcon(cmdName: string): string {
@@ -188,12 +209,13 @@ export class Render {
     }
   }
 
-  // 其余渲染函数保持不变，但可以进行内部简化
+  // 渲染命令卡片
   private renderCmdCard(cmd: CommandData): string {
-    const name = cmd.displayName ? String(cmd.displayName).replace(/\./g, " ") : cmd.name
+    const name = cmd.name
     const desc = this.getDesc(cmd.description)
     const icon = this.getCmdIcon(cmd.name)
 
+    // 简化卡片显示
     return `
       <div class="command-item">
         <div class="command-header">
@@ -203,65 +225,10 @@ export class Render {
           </span>
         </div>
         ${desc ? `<div class="command-description">${desc}</div>` : ""}
-        ${cmd.options?.length ? `<div class="command-tag">
-          <i class="material-icons">${this.UI_ICONS.options}</i>
+        ${cmd.options?.length ? `<div class="command-tag" style="margin-top: auto; font-size: 10px;">
+          <i class="material-icons" style="font-size: 12px;">${this.UI_ICONS.options}</i>
           ${cmd.options.length} 个选项
         </div>` : ""}
-      </div>
-    `
-  }
-
-  /**
-   * 渲染父命令
-   */
-  private renderParentCmd(cmd: CommandData): string {
-    const name = cmd.displayName ? String(cmd.displayName).replace(/\./g, " ") : cmd.name
-    const desc = this.getDesc(cmd.description)
-    const hasSubs = cmd.subCommands?.length > 0
-    const icon = this.getCmdIcon(cmd.name)
-
-    return `
-      <div class="command-item">
-        <div class="command-header">
-          <span class="command-name">
-            <i class="material-icons">${icon}</i>
-            ${name}
-            ${hasSubs ? `<span class="command-badge">
-              <i class="material-icons">${this.UI_ICONS.badge}</i>
-              ${cmd.subCommands.length} 个子命令
-            </span>` : ''}
-          </span>
-        </div>
-        ${desc ? `<div class="command-description">${desc}</div>` : ""}
-        ${cmd.options?.length ? `
-          <div style="margin-top: 8px;">
-            ${cmd.options.map(opt => `<span class="command-tag">
-              <i class="material-icons">${this.UI_ICONS.tag}</i>
-              ${opt.name}
-            </span>`).join(' ')}
-          </div>
-        ` : ""}
-
-        ${hasSubs ? `
-          <div class="subcommands">
-            <div class="subcommands-title">
-              <i class="material-icons">${this.UI_ICONS.subcommands}</i>
-              子命令：
-            </div>
-            <div class="subcommand-list">
-              ${cmd.subCommands.map(sub => `
-                <div class="subcommand-item">
-                  <div class="subcommand-name">
-                    <i class="material-icons">${this.getCmdIcon(sub.name)}</i>
-                    ${sub.displayName.replace(/.*\./, '')}
-                  </div>
-                  ${this.getDesc(sub.description) ?
-                    `<div class="subcommand-desc">${this.getDesc(sub.description)}</div>` : ''}
-                </div>
-              `).join('')}
-            </div>
-          </div>
-        ` : ''}
       </div>
     `
   }
@@ -270,7 +237,7 @@ export class Render {
    * 渲染命令详情
    */
   private renderCmdDetail(cmd: CommandData): string {
-    const name = cmd.displayName ? String(cmd.displayName).replace(/\./g, " ") : cmd.name
+    const name = cmd.name
     const desc = this.getDesc(cmd.description)
     const icon = this.getCmdIcon(cmd.name)
 
