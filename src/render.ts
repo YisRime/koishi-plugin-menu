@@ -1,353 +1,316 @@
-import { Context } from 'koishi'
-import {} from 'koishi-plugin-puppeteer'
-import { CommandData, CategoryData, CommandGroup } from './command'
-import { Style } from './style'
-import { logger } from './index'
-
-export interface RenderConfig {
-  title?: string
-  description?: string
-  showGroups?: boolean
-  groupsData?: any // 自定义分组数据
+/**
+ * 布局配置接口
+ * @interface Layout
+ */
+export interface Layout {
+  /** 网格行数 */
+  rows: number
+  /** 网格列数 */
+  cols: number
+  /** 布局项目列表 */
+  items: LayoutItem[]
 }
 
 /**
- * 图片渲染类
+ * 布局项目接口
+ * @interface LayoutItem
+ */
+export interface LayoutItem {
+  /** 起始行位置 */
+  row: number
+  /** 起始列位置 */
+  col: number
+  /** 跨越的行数 */
+  rowSpan: number
+  /** 跨越的列数 */
+  colSpan: number
+  /** 命令名称 */
+  commandName: string
+  /** 项目类型 */
+  itemType: 'desc' | 'usage' | 'examples' | 'options' | 'subs'
+}
+
+/**
+ * 主题渲染器
+ * @class Render
  */
 export class Render {
-  private ctx: Context
-  private style: Style
-
-  // 图标映射
-  private readonly CMD_ICONS = {
-    default: 'code', help: 'help_outline', admin: 'admin_panel_settings',
-    user: 'person', info: 'info', settings: 'settings',
-    search: 'search', list: 'list', create: 'add_circle',
-    delete: 'delete', edit: 'edit', menu: 'menu_book',
-    plugin: 'extension', refresh: 'refresh', data: 'database',
-    image: 'image', music: 'music_note', video: 'video_library',
-    game: 'sports_esports', chat: 'chat', send: 'send',
-    download: 'download', upload: 'upload', time: 'schedule'
-  }
-  private readonly GROUP_ICONS = {
-    default: 'widgets', system: 'settings', game: 'sports_esports',
-    utility: 'build', admin: 'admin_panel_settings', user: 'person',
-    media: 'perm_media', music: 'music_note', search: 'search',
-    fun: 'mood', social: 'forum', other: 'more_horiz'
-  }
-  private readonly UI_ICONS = {
-    // categoryHeader: 'menu_book', // Removed
-    options: 'tune',
-    examples: 'code', subcommands: 'account_tree',
-    badge: 'label', tag: 'local_offer'
+  /**
+   * 构建完整的 HTML 页面
+   * @param {any} config - 配置对象，包含样式和页面设置
+   * @param {Layout} layout - 布局配置
+   * @param {any[]} commands - 命令数据数组
+   * @returns {string} 完整的 HTML 字符串
+   */
+  buildHtml(config: any, layout: Layout, commands: any[]): string {
+    const css = this.buildCSS(config)
+    const body = this.buildBody(config, layout, commands)
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body>${body}</body></html>`
   }
 
-  constructor(ctx: Context, style: Style) {
-    this.ctx = ctx
-    this.style = style
-  }
-
-  public async toImage(html: string): Promise<Buffer> {
-    const page = await this.ctx.puppeteer.page()
-
-    try {
-      await page.setContent(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-              body {margin:0;padding:0;font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:transparent;
-                    color:rgba(0,0,0,0.87);font-size:14px;line-height:1.4;-webkit-font-smoothing:antialiased;}
-              * {box-sizing:border-box;}
-            </style>
-          </head>
-          <body>${html}</body>
-        </html>
-      `)
-
-      // 获取内容尺寸并设置视口
-      const {width, height} = await page.evaluate(() => ({
-        width: Math.min(480, document.body.scrollWidth),
-        height: document.body.scrollHeight
-      }))
-
-      await page.setViewport({width, height, deviceScaleFactor: 2})
-
-      // 等待图片加载
-      await page.evaluate(() => Promise.all(Array.from(document.querySelectorAll('img'))
-        .map(img => img.complete ? Promise.resolve() : new Promise(resolve => {
-          img.addEventListener('load', resolve)
-          img.addEventListener('error', resolve)
-        }))))
-
-      return await page.screenshot({type: 'png', fullPage: true, omitBackground: true})
-    } catch (err) {
-      logger.error('图片渲染出错:', err)
-      throw new Error(`图片渲染出错: ${err.message || '未知错误'}`)
-    } finally {
-      await page.close().catch(() => {})
-    }
-  }
-
-  public genListHTML(categories: CategoryData[], config: RenderConfig = {}): string {
-    if (!categories?.length || !categories[0]?.commands?.length) {
-      logger.warn('无效的分类数据或无命令')
-      return this.wrap('<div>没有可显示的命令。</div>');
-    }
-
-    const showGroups = config.showGroups !== false // Default to true if not specified
-
-    // 使用分组配置
-    if (showGroups) {
-      return this.wrap(this.renderGroupsFromConfig(categories[0].commands, config.groupsData));
-    } else {
-      // 无分组模式，所有命令平铺展示
-      return this.wrap(`<div class="group-content">
-        ${this.renderCmdGrid(categories[0].commands)}
-      </div>`);
-    }
-  }
-
-  private renderGroupsFromConfig(commands: CommandData[], groupsData: any): string {
-    if (!groupsData?.groups?.length) return this.renderCmdGrid(commands);
-
-    return groupsData.groups.map(group => {
-      // 筛选该分组下的命令
-      const groupCommands = group.commands.length === 0
-        ? commands // 空数组表示包含所有命令
-        : commands.filter(cmd => group.commands.includes(cmd.name));
-
-      if (!groupCommands.length) return '';
-
-      return `
-        <div class="command-group">
-          <div class="group-title-header">
-            <i class="material-icons">${this.GROUP_ICONS[group.icon] || this.CMD_ICONS[group.icon] || this.GROUP_ICONS.default}</i>
-            <span>${group.name}</span>
-          </div>
-          <div class="group-content">
-            ${groupCommands.map(cmd => this.renderCmdCard(cmd)).join('')}
-          </div>
-        </div>
-      `;
-    }).join('');
-  }
-
-  private renderGroups(groups: CommandGroup[]): string {
-    if (!groups?.length) return ''
-    return groups.map(group => `
-      <div class="command-group">
-        <div class="group-title-header">
-          <i class="material-icons">${this.GROUP_ICONS[group.icon] || this.CMD_ICONS[group.icon] || this.GROUP_ICONS.default}</i>
-          <span>${group.name}</span>
-        </div>
-        <div class="group-content">
-          ${group.commands.map(cmd => this.renderCmdCard(cmd)).join('')}
-        </div>
-      </div>
-    `).join('')
-  }
-
-  public genCmdHTML(cmd: CommandData, config: RenderConfig = {}): string {
-    if (!cmd) return this.wrap('<div>无法显示命令数据</div>')
-
-    const content = `
-      <div class="command-group">
-        <div class="material-card commands-card" style="padding: 16px; background-color: ${this.style.getStyle().secondaryBackground}; border-radius: ${this.style.getStyle().cardBorderRadius};">
-          ${this.renderCmdDetail(cmd)}
-        </div>
-      </div>`;
-
-    return this.wrap(content)
-  }
-
-  private wrap(content: string): string {
-    return `<div class="ocr-container">${content}</div><style>${this.style.getStyleSheet()}</style>`
-  }
-
-  private renderCmdGrid(commands: CommandData[]): string {
-    // This function is now primarily used if NOT using the group structure,
-    // or if a group itself has sub-groupings that need a grid.
-    // For the main group.commands, renderCmdCard is called directly in renderGroups.
-    const regular = commands.filter(cmd => !cmd.subCommands?.length) // Simplified: render all as cards
-
+  /**
+   * 构建 CSS 样式字符串
+   * @private
+   * @param {any} config - 配置对象，包含主题色彩、字体等样式设置
+   * @returns {string} CSS 样式字符串
+   */
+  private buildCSS(config: any): string {
     return `
-      ${regular.length > 0 ? `
-          ${regular.map(cmd => this.renderCmdCard(cmd)).join("")}
-        ` : '<div>该分组下暂无命令。</div>'}
-    `
-    // Parent command rendering logic might be too complex for simple cards in a grid.
-    // Consider simplifying parent command display within cards or rely on detail view.
+${config.fontUrl ? `@import url('${config.fontUrl}');` : ''}
+
+:root {
+  --primary: ${config.primary};
+  --secondary: ${config.secondary};
+  --bg: ${config.bgColor};
+  --surface: rgba(255, 255, 255, 0.96);
+  --text: ${config.textColor};
+  --text-light: rgba(100, 116, 139, 0.6);
+  --border: rgba(139, 92, 246, 0.12);
+  --radius: ${config.radius}px;
+  --spacing: ${config.padding}px;
+  --gap: ${Math.max(config.padding * 0.75, 10)}px;
+  --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --fs: ${config.fontSize}px;
+  --title-scale: ${config.titleSize};
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font: 400 var(--fs)/1.6 var(--font);
+  color: var(--text);
+  background: ${config.bgImage
+    ? `var(--bg) url('${config.bgImage}') center/cover`
+    : `linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(56, 189, 248, 0.06) 50%, var(--bg) 100%)`};
+  padding: calc(var(--spacing) * 2);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background:
+    radial-gradient(circle at 25% 25%, rgba(139, 92, 246, 0.06) 0%, transparent 50%),
+    radial-gradient(circle at 75% 75%, rgba(56, 189, 248, 0.05) 0%, transparent 50%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+.container {
+  width: 100%;
+  max-width: 480px;
+  background: rgba(255, 255, 255, 0.98);
+  border-radius: calc(var(--radius) * 1.5);
+  overflow: hidden;
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.06),
+    0 8px 20px rgba(139, 92, 246, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(139, 92, 246, 0.12);
+  position: relative;
+}
+
+.header {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.9) 0%, rgba(56, 189, 248, 0.85) 100%);
+  color: white;
+  padding: calc(var(--spacing) * 1.5);
+  text-align: center;
+  font-weight: 600;
+  font-size: calc(var(--fs) * var(--title-scale));
+  position: relative;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15);
+}
+
+.header::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 1px;
+}
+
+.grid-container {
+  display: grid;
+  grid-template-columns: repeat(var(--grid-cols, 1), 1fr);
+  gap: var(--gap);
+  padding: var(--gap);
+  background: linear-gradient(135deg, rgba(248, 250, 252, 0.8) 0%, rgba(255, 255, 255, 0.95) 100%);
+  position: relative;
+}
+
+.grid-item {
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: var(--radius);
+  padding: var(--spacing);
+  border: 1px solid rgba(139, 92, 246, 0.08);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.03),
+    0 2px 6px rgba(139, 92, 246, 0.05);
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.grid-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 100%;
+  background: linear-gradient(180deg, rgba(139, 92, 246, 0.7) 0%, rgba(56, 189, 248, 0.7) 100%);
+  opacity: 0.6;
+}
+
+.grid-item-title {
+  font-weight: 600;
+  font-size: calc(var(--fs) * 1.15);
+  color: var(--text);
+  margin-bottom: calc(var(--spacing) * 0.5);
+  background: linear-gradient(90deg, rgba(139, 92, 246, 0.9), rgba(56, 189, 248, 0.8));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.grid-item-content {
+  color: var(--text-light);
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.grid-item.option {
+  border: 2px dashed rgba(139, 92, 246, 0.15);
+  background: linear-gradient(145deg, rgba(139, 92, 246, 0.04) 0%, rgba(255, 255, 255, 0.98) 100%);
+}
+
+.grid-item.option::before {
+  background: linear-gradient(180deg, rgba(139, 92, 246, 0.4) 0%, rgba(56, 189, 248, 0.3) 100%);
+}
+
+.grid-item.subCommand {
+  background: linear-gradient(145deg, rgba(56, 189, 248, 0.06) 0%, rgba(255, 255, 255, 0.96) 100%);
+  border-color: rgba(56, 189, 248, 0.12);
+}
+
+.grid-item.subCommand::before {
+  background: rgba(56, 189, 248, 0.6);
+}
+
+.footer {
+  background: linear-gradient(135deg, rgba(248, 250, 252, 0.8) 0%, rgba(255, 255, 255, 0.96) 100%);
+  color: var(--text-light);
+  padding: calc(var(--spacing) * 0.8);
+  text-align: center;
+  font-size: calc(var(--fs) * 0.85);
+  border-top: 1px solid rgba(139, 92, 246, 0.08);
+  position: relative;
+}
+
+.footer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.3), transparent);
+  opacity: 0.4;
+}
+
+@media (max-width: 480px) {
+  body {
+    padding: var(--spacing);
+  }
+  .container {
+    border-radius: var(--radius);
+    max-width: 100%;
+  }
+  .grid-container { grid-template-columns: 1fr !important; }
+}
+`
   }
 
-  private getCmdIcon(cmdName: string): string {
-    if (!cmdName) return this.CMD_ICONS.default
+  /**
+   * 构建页面主体内容
+   * @private
+   * @param {any} config - 配置对象
+   * @param {Layout} layout - 布局配置
+   * @param {any[]} commands - 命令数据数组
+   * @returns {string} HTML 主体内容字符串
+   */
+  private buildBody(config: any, layout: Layout, commands: any[]): string {
+    const grid = layout.items.map(layoutItem => {
+      const { title, content, cssClass } = this.buildItemContent(layoutItem, commands)
+      const titleHtml = title ? `<div class="grid-item-title">${this.safeText(title)}</div>` : ''
+      const contentHtml = `<div class="grid-item-content">${this.safeText(content)}</div>`
+      return `<div class="grid-item ${cssClass}" style="grid-column:${layoutItem.col}/span ${layoutItem.colSpan};grid-row:${layoutItem.row}/span ${layoutItem.rowSpan}">${titleHtml}${contentHtml}</div>`
+    }).join('')
+    return `<div class="container" style="--grid-cols:${layout.cols}">
+      ${config.header?.trim() ? `<div class="header">${config.header.trim()}</div>` : ''}
+      <div class="grid-container">${grid}</div>
+      ${config.footer?.trim() ? `<div class="footer">${config.footer.trim()}</div>` : ''}
+    </div>`
+  }
 
-    const name = cmdName.toLowerCase()
-
-    // 检查命令名匹配
-    for (const [key, icon] of Object.entries(this.CMD_ICONS)) {
-      if (key !== 'default' && (name === key || name.includes(key)))
-        return icon
+  /**
+   * 构建单个布局项目的内容
+   * @private
+   * @param {LayoutItem} layoutItem - 布局项目配置
+   * @param {any[]} commands - 命令数据数组
+   * @returns {{title: string; content: string; cssClass: string}} 包含标题、内容和CSS类名的对象
+   */
+  private buildItemContent(layoutItem: LayoutItem, commands: any[]): { title: string; content: string; cssClass: string } {
+    const { commandName, itemType } = layoutItem
+    const cmd = commands.find(c => c.name === commandName) ||
+               commands.flatMap(c => c.subs || []).find(s => s.name === commandName)
+    if (!cmd) return { title: commandName, content: '命令未找到', cssClass: 'error' }
+    const contentMap = {
+      desc: () => ({ title: cmd.name, content: cmd.desc || '无描述', cssClass: 'description' }),
+      usage: () => ({ title: '使用方法', content: cmd.usage || '无使用说明', cssClass: 'usage' }),
+      examples: () => ({
+        title: `使用示例 (${cmd.examples?.length || 0})`,
+        content: cmd.examples?.length ? cmd.examples.join('\n\n') : '无示例',
+        cssClass: 'examples'
+      }),
+      options: () => ({
+        title: `选项参数 (${cmd.options?.length || 0})`,
+        content: cmd.options?.length ? cmd.options.map(o => {
+          const syntax = o.syntax || o.name
+          return o.desc ? `${syntax}\n  ${o.desc}` : syntax
+        }).join('\n\n') : '无选项',
+        cssClass: 'option'
+      }),
+      subs: () => ({
+        title: `子命令 (${cmd.subs?.length || 0})`,
+        content: cmd.subs?.length ? cmd.subs.map(s => `${s.name} - ${s.desc || '无描述'}`).join('\n') : '无子命令',
+        cssClass: 'subCommand'
+      })
     }
-
-    // 根据前缀分类
-    const part = name.split('.')[0]
-    switch (part) {
-      case 'help': case 'h': return this.CMD_ICONS.help
-      case 'admin': case 'manage': case 'op': return this.CMD_ICONS.admin
-      case 'user': case 'profile': return this.CMD_ICONS.user
-      case 'set': case 'config': case 'settings': return this.CMD_ICONS.settings
-      case 'info': case 'about': case 'status': return this.CMD_ICONS.info
-      case 'list': case 'ls': case 'show': return this.CMD_ICONS.list
-      case 'menu': return this.CMD_ICONS.menu
-      case 'plugin': case 'ext': case 'extension': return this.CMD_ICONS.plugin
-      case 'search': case 'find': case 'query': return this.CMD_ICONS.search
-      default: return this.CMD_ICONS.default
-    }
-  }
-
-  // 渲染命令卡片
-  private renderCmdCard(cmd: CommandData): string {
-    const name = cmd.name
-    const desc = this.getDesc(cmd.description)
-    const icon = this.getCmdIcon(cmd.name)
-
-    // 简化卡片显示
-    return `
-      <div class="command-item">
-        <div class="command-header">
-          <span class="command-name">
-            <i class="material-icons">${icon}</i>
-            ${name}
-          </span>
-        </div>
-        ${desc ? `<div class="command-description">${desc}</div>` : ""}
-        ${cmd.options?.length ? `<div class="command-tag" style="margin-top: auto; font-size: 10px;">
-          <i class="material-icons" style="font-size: 12px;">${this.UI_ICONS.options}</i>
-          ${cmd.options.length} 个选项
-        </div>` : ""}
-      </div>
-    `
+    return contentMap[itemType]?.() || contentMap.desc()
   }
 
   /**
-   * 渲染命令详情
+   * 转义 HTML 特殊字符，防止 XSS 攻击
+   * @private
+   * @param {string} str - 需要转义的字符串
+   * @returns {string} 转义后的安全字符串
    */
-  private renderCmdDetail(cmd: CommandData): string {
-    const name = cmd.name
-    const desc = this.getDesc(cmd.description)
-    const icon = this.getCmdIcon(cmd.name)
-
-    return `
-      <div class="commands-container">
-        <div class="command-name" style="font-size: 16px; margin-bottom: 8px;">
-          <i class="material-icons" style="font-size: 18px;">${icon}</i>
-          ${name}
-        </div>
-        ${desc ? `<div class="command-description" style="font-size: 13px; margin-bottom: 10px;">${desc}</div>` : ""}
-
-        ${cmd.usage ? `
-          <div class="command-usage">
-            <pre>${Array.isArray(cmd.usage) ? this.getDesc(cmd.usage) : cmd.usage}</pre>
-          </div>
-        ` : ""}
-
-        ${this.renderOpts(cmd.options)}
-        ${this.renderExamples(cmd.examples)}
-
-        ${cmd.subCommands?.length ? `
-          <div class="subcommands">
-            <div class="subcommands-title">
-              <i class="material-icons">${this.UI_ICONS.subcommands}</i>
-              子命令：
-            </div>
-            <div class="subcommand-list">
-              ${cmd.subCommands.map(sub => this.renderCmdCard(sub)).join('')}
-            </div>
-          </div>
-        ` : ''}
-      </div>
-    `
-  }
-
-  /**
-   * 渲染选项
-   */
-  private renderOpts(options: any[]): string {
-    if (!options?.length) return ""
-
-    return `
-      <div class="command-options">
-        <div class="options-title">
-          <i class="material-icons">${this.UI_ICONS.options}</i>
-          可用选项：
-        </div>
-        <div class="options-grid">
-          ${options.map(opt => `
-            <div class="option-item">
-              <code>${opt.syntax || ''}</code>
-              ${opt.description ?
-                `<div style="margin-top: 4px; color: ${this.style.getStyle().descriptionColor};">
-                  ${this.getDesc(opt.description)}
-                </div>` : ''}
-            </div>
-          `).join("")}
-        </div>
-      </div>
-    `
-  }
-
-  /**
-   * 渲染示例
-   */
-  private renderExamples(examples: string[]): string {
-    if (!examples?.length) return ""
-
-    const text = Array.isArray(examples) ? examples.join("\n") : examples
-    if (!text) return ""
-
-    return `
-      <div class="command-examples">
-        <div class="examples-title">
-          <i class="material-icons">${this.UI_ICONS.examples}</i>
-          示例：
-        </div>
-        <pre>${text}</pre>
-      </div>
-    `
-  }
-
-  /**
-   * 提取描述文本
-   */
-  private getDesc(desc: any): string {
-    if (!desc) return ''
-    if (typeof desc === 'string') return desc
-    if (Array.isArray(desc)) return desc.map(item => this.getDesc(item)).join(' ')
-    if (desc.type === 'text' && desc.attrs?.content) return desc.attrs.content
-    if (desc.children?.length) return desc.children.map(child => this.getDesc(child)).join(' ')
-    return ''
-  }
-
-  /**
-   * 渲染命令列表为图片
-   */
-  public async renderList(categories: CategoryData[], config: RenderConfig = {}): Promise<Buffer> {
-    const cfg = {title: "命令列表", showGroups: true, ...config}
-    return await this.toImage(this.genListHTML(categories, cfg))
-  }
-
-  /**
-   * 渲染命令为图片
-   */
-  public async renderCmd(cmd: CommandData, config: RenderConfig = {}): Promise<Buffer> {
-    return await this.toImage(this.genCmdHTML(cmd, config))
-  }
-
-  public updateStyle(style: Style): void {
-    this.style = style
+  private safeText(str: string): string {
+    return String(str || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m])
   }
 }

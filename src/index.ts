@@ -1,265 +1,158 @@
-import { Context, Schema, Logger, Element, h } from 'koishi'
-import { Style } from './style'
-import { Command, CategoryData } from './command'
+import { Context, Schema, Logger, h, Computed } from 'koishi'
+import {} from 'koishi-plugin-puppeteer'
+import { Extract, createLayout } from './extract'
+import { FileStore, DataStore } from './utils'
 import { Render } from './render'
-import { Cache } from './cache'
+
+declare module 'koishi' {
+  namespace Command {
+    interface Config {
+      hidden?: Computed<boolean>
+    }
+  }
+  namespace Argv {
+    interface OptionConfig {
+      hidden?: Computed<boolean>
+    }
+  }
+}
 
 export const name = 'menu'
 export const inject = ['puppeteer']
 export const logger = new Logger('menu')
 
-// 配置模式
+/**
+ * 插件配置接口
+ */
 export interface Config {
-  theme: string
-  cacheEnabled: boolean
-  refreshInterval: number
-  customIconsEnabled: boolean
-  useGroupsLayout: boolean
+  /** 命令数据源类型 - file: 本地文件缓存, inline: 内存实时读取 */
+  cmdSrc: 'file' | 'inline'
+  /** 布局数据源类型 - file: 本地文件缓存, inline: 内存实时生成 */
+  layoutSrc: 'file' | 'inline'
+  /** 内边距大小，单位为像素，范围 8-32px */
+  padding: number
+  /** 圆角大小，单位为像素，范围 0-24px */
+  radius: number
+  /** 背景图片文件名或完整 URL 地址 */
+  background?: string
+  /** 自定义字体的 URL 链接 */
+  fontUrl?: string
+  /** 基础字体大小，单位为像素，范围 10-20px */
+  fontSize: number
+  /** 标题字体大小倍数，相对于基础字体大小，范围 1-3 */
+  titleSize: number
+  /** 页头 HTML 内容，支持自定义样式 */
+  header?: string
+  /** 页脚 HTML 内容，支持自定义样式 */
+  footer: string
+  /** 主色调，用于按钮、链接等主要元素 */
+  primary: string
+  /** 副色调，用于次要元素和装饰 */
+  secondary: string
+  /** 背景色，整个页面的背景颜色 */
+  bgColor: string
+  /** 文本色，主要文本内容的颜色 */
+  textColor: string
 }
 
-export const Config: Schema<Config> = Schema.object({
-  theme: Schema.string()
-    .description('选择主题 (light: 亮色主题, dark: 暗色主题，或自定义主题名称)')
-    .default('light'),
-  cacheEnabled: Schema.boolean()
-    .description('启用缓存')
-    .default(true),
-  refreshInterval: Schema.number()
-    .description('缓存刷新间隔(小时), 0表示不自动刷新')
-    .default(0),
-  customIconsEnabled: Schema.boolean()
-    .description('启用自定义图标')
-    .default(true),
-  useGroupsLayout: Schema.boolean()
-    .description('使用分组布局展示命令')
-    .default(true)
-})
+export const Config: Schema<Config> = Schema.intersect([
+  Schema.object({
+    cmdSrc: Schema.union([
+      Schema.const('file').description('本地配置'),
+      Schema.const('inline').description('内存读取'),
+    ]).default('file').description('命令数据源'),
+    layoutSrc: Schema.union([
+      Schema.const('file').description('本地配置'),
+      Schema.const('inline').description('内存读取'),
+    ]).default('file').description('布局数据源'),
+  }).description('数据源配置'),
+  Schema.object({
+    padding: Schema.number().description('边距(px)').min(8).max(32).default(16),
+    radius: Schema.number().description('圆角(px)').min(0).max(24).default(12),
+  }).description('布局配置'),
+  Schema.object({
+    background: Schema.string().description('背景图片(文件名或URL)'),
+    fontUrl: Schema.string().description('字体链接(URL)'),
+    fontSize: Schema.number().description('字体大小(px)').min(10).max(20).default(14),
+    titleSize: Schema.number().description('标题字体倍数').min(1).max(3).step(0.1).default(1.4),
+  }).description('界面配置'),
+  Schema.object({
+    header: Schema.string().role('textarea').description('页头 HTML 内容'),
+    footer: Schema.string().role('textarea').description('页脚 HTML 内容'),
+  }).description('页面内容'),
+  Schema.object({
+    primary: Schema.string().description('主色调').role('color').default('#8b5cf6'),
+    secondary: Schema.string().description('副色调').role('color').default('#38bdf8'),
+    bgColor: Schema.string().description('背景色').role('color').default('#fefefe'),
+    textColor: Schema.string().description('文本色').role('color').default('#64748b'),
+  }).description('颜色配置')
+])
 
 /**
- * 插件应用函数
+ * 插件主函数
+ * @param ctx - Koishi 应用上下文对象，提供框架核心功能
+ * @param config - 插件配置对象，包含用户自定义的所有配置项
  */
 export function apply(ctx: Context, config: Config) {
-  // 变量初始化
-  const defLocale = typeof ctx.i18n.locales[0] === 'string' ? ctx.i18n.locales[0] : 'zh-CN'
-  let style = new Style(ctx.baseDir, config.theme)
-  let cmd = new Command(ctx)
-  let cache = new Cache(ctx.baseDir, defLocale, style.getThemeId())
-  let render: Render
-  let catData: Map<string, CategoryData[]> = new Map()
-  let timer: NodeJS.Timeout = null
-  let ready = false
-  let groupsData = null
+  const files = new FileStore(ctx.baseDir)
+  const render = new Render()
+  const extract = new Extract(ctx)
+  const data = new DataStore(files, extract)
 
-  // 注册命令
-  ctx.command('menu [command:text]', '显示命令帮助')
-    .userFields(['authority'])
-    .option('refresh', '-r 刷新命令缓存')
-    .action(async ({ session, options, args }) => {
-      const locale = session.locales?.[0] || defLocale
+  // 扩展命令配置架构
+  ctx.schema.extend('command', Schema.object({
+    hidden: Schema.computed(Schema.boolean()).description('在帮助中隐藏指令').default(false),
+  }), 900)
+  ctx.schema.extend('command-option', Schema.object({
+    hidden: Schema.computed(Schema.boolean()).description('在帮助中隐藏选项').default(false),
+  }), 900)
 
-      if (options.refresh) {
-        try {
-          await refreshCache(locale)
-          return '命令缓存已刷新'
-        } catch (err) {
-          logger.error('手动刷新失败', err)
-          return '刷新缓存失败'
-        }
-      }
+  /**
+   * 渲染 HTML 内容为 PNG 图像
+   * @param html - 要渲染的完整 HTML 字符串
+   * @returns Promise<Buffer> 渲染后的 PNG 图像二进制数据
+   * @throws {Error} 当页面渲染或截图失败时抛出错误
+   */
+  const toImage = async (html: string): Promise<Buffer> => {
+    const page = await ctx.puppeteer.page()
+    await page.setContent(html)
+    const element = await page.$('.container')
+    return await element.screenshot({ type: 'png', omitBackground: true })
+  }
 
-      try {
-        return args[0]
-          ? await getCmdImg(args[0].trim().replace(/\s+/g, "."), locale) // 将空格替换为点
-          : await getListImg(locale)
-      } catch (error) {
-        logger.error('处理菜单命令失败', error)
-        return '执行命令时发生错误，请稍后再试'
-      }
-    })
-
-  // 初始化插件
-  ctx.on('ready', async () => {
-    try {
-      // 并行初始化
-      logger.info('菜单插件开始初始化')
-      await Promise.all([cache.initialize(), style.initialize()])
-      render = new Render(ctx, style)
-
-      // 设置定时刷新
-      if (config.refreshInterval > 0 && config.cacheEnabled) {
-        if (timer) clearInterval(timer)
-        timer = setInterval(() => {
-          refreshCache(defLocale).catch(err => logger.error('刷新缓存失败:', err))
-        }, config.refreshInterval * 60 * 60 * 1000)
-        logger.info(`已设置缓存刷新间隔: ${config.refreshInterval} 小时`)
-      }
-
-      // 加载命令数据
-      const cached = await cache.loadCommandsData()
-      if (cached) {
-        catData.set(defLocale, cached)
-      } else {
-        const data = await cmd.extractCategories(defLocale)
-        catData.set(defLocale, data)
-        if (config.cacheEnabled) await cache.saveCommandsData(data)
-      }
-
-      // 加载分组配置
-      groupsData = await cache.loadGroupsData()
-
-      // 如果没有分组数据或加载失败，创建并保存默认分组
-      if (!groupsData) {
-        groupsData = {
-          groups: [
-            {
-              name: "所有命令",
-              icon: "apps",
-              commands: []  // 空数组表示包含所有命令
-            }
-          ],
-          version: 1
-        };
-        await cache.saveGroupsData(groupsData);
-      }
-
-      // 准备缓存
-      if (config.cacheEnabled) {
-        // 命令列表缓存
-        if (!cache.hasCommandListCache()) {
-          const img = await render.renderList(catData.get(defLocale), {
-            showGroups: config.useGroupsLayout,
-            title: "命令列表",
-            groupsData: groupsData // 传递分组数据
-          })
-          await cache.saveImageCache(cache.getCommandListPath(), img)
-        }
-        // 预渲染命令
-        await prerenderCmds(defLocale)
-      }
-
-      ready = true
-      logger.info('菜单插件初始化完成')
-    } catch (err) {
-      logger.error('初始化失败:', err)
-    }
+  // 命令执行前检查并处理无 action 命令
+  ctx.before('command/execute', (argv) => {
+    const { command, session } = argv
+    if (command['_actions'].length || !session.app.$commander.get('menu')) return
+    return session.execute({ name: 'menu', args: [command.name] })
   })
 
-  /**
-   * 预渲染所有命令
-   */
-  async function prerenderCmds(locale: string) {
-    const allCmds = cmd.getAllCmds()
-    const total = allCmds.length
-    let [count, cached, rendered, failed] = [0, 0, 0, 0]
-
-    cache.updateConfig(locale, style.getThemeId())
-
-    for (const name of allCmds) {
-      count++
+  // 注册命令
+  ctx.command('menu [cmd:string]', '显示指令帮助')
+    .userFields(['authority'])
+    .action(async ({ session }, cmd) => {
       try {
-        if (cache.hasCommandCache(name)) {
-          cached++; continue
+        const locale = extract.getLocale(session)
+        // 获取命令数据
+        let commands = config.cmdSrc === 'inline'
+          ? (cmd ? await extract.getRelated(session, cmd, locale) : await extract.getAll(session, locale))
+          : await data.getCommands(cmd, session, locale)
+        // 应用过滤
+        if (config.cmdSrc === 'inline') {
+          commands = await extract.filterCommands(commands, session)
+          commands = commands.map(command => extract.filterCommandOptions(command, session))
         }
-
-        const data = await cmd.getCommandData(name, locale)
-        if (!data) {
-          failed++; continue
-        }
-
-        const img = await render.renderCmd(data, { title: `命令: ${name}` })
-        await cache.saveImageCache(cache.getCommandImagePath(name), img)
-        rendered++
+        // 获取布局并渲染
+        const layout = config.layoutSrc === 'inline'
+          ? await createLayout(cmd, commands)
+          : await data.getLayout(cmd, commands)
+        if (!layout) return cmd ? `找不到命令 ${cmd}` : '无可用命令'
+        const html = render.buildHtml(config, layout, commands)
+        const buffer = await toImage(html)
+        return h.image(buffer, 'image/png')
       } catch (error) {
-        failed++
+        logger.error('渲染失败:', error)
+        return '渲染菜单失败'
       }
-
-      // 仅在完成时输出日志
-      if (count === total) {
-        logger.info(`预渲染完成: ${cached}个缓存, ${rendered}个新渲染, ${failed}个失败`)
-      }
-    }
-  }
-
-  /**
-   * 刷新缓存
-   */
-  async function refreshCache(locale: string) {
-    cache.updateConfig(locale, style.getThemeId())
-    await cache.clearAllCache()
-
-    const data = await cmd.extractCategories(locale)
-    catData.set(locale, data)
-
-    if (config.cacheEnabled) await cache.saveCommandsData(data)
-
-    // 重新加载分组数据
-    groupsData = await cache.loadGroupsData()
-
-    const img = await render.renderList(catData.get(locale), {
-      showGroups: config.useGroupsLayout,
-      title: "命令列表",
-      groupsData: groupsData
     })
-    await cache.saveImageCache(cache.getCommandListPath(), img)
-    logger.info(`已刷新缓存(${locale}, ${style.getThemeId()})`)
-  }
-
-  /**
-   * 获取列表图片
-   */
-  async function getListImg(locale: string): Promise<Element> {
-    cache.updateConfig(locale, style.getThemeId())
-    let img: Buffer = null
-
-    // 尝试加载分组数据
-    if (!groupsData) {
-      groupsData = await cache.loadGroupsData()
-    }
-
-    // 尝试从缓存获取
-    if (config.cacheEnabled && cache.hasCommandListCache()) {
-      img = await cache.readImageCache(cache.getCommandListPath())
-    }
-
-    // 重新渲染
-    if (!img) {
-      if (!catData.has(locale)) {
-        const data = await cmd.extractCategories(locale)
-        catData.set(locale, data)
-        if (config.cacheEnabled) await cache.saveCommandsData(data)
-      }
-
-      img = await render.renderList(catData.get(locale), {
-        showGroups: config.useGroupsLayout,
-        title: "命令列表",
-        groupsData: groupsData // 传递分组数据
-      })
-      if (config.cacheEnabled) await cache.saveImageCache(cache.getCommandListPath(), img)
-    }
-
-    return h.image(img, 'image/png')
-  }
-
-  /**
-   * 获取命令图片
-   */
-  async function getCmdImg(name: string, locale: string): Promise<Element> {
-    cache.updateConfig(locale, style.getThemeId())
-
-    // 尝试从缓存获取
-    let img = config.cacheEnabled && cache.hasCommandCache(name)
-      ? await cache.readImageCache(cache.getCommandImagePath(name))
-      : null
-
-    // 重新渲染
-    if (!img) {
-      const data = await cmd.getCommandData(name, locale)
-      if (!data) throw new Error(`命令 ${name} 不存在或无法访问`)
-
-      img = await render.renderCmd(data, { title: `命令: ${name}` })
-      if (config.cacheEnabled) await cache.saveImageCache(cache.getCommandImagePath(name), img)
-    }
-
-    return h.image(img, 'image/png')
-  }
 }
