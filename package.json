@@ -1,6 +1,6 @@
 {
   "name": "koishi-plugin-menu",
-  "description": "可自定义的帮助菜单",
+  "description": "可自定义的帮助菜单，提供美观的可视化命令帮助界面",
   "version": "1.0.0",
   "contributors": [
     "Yis_Rime <yis_rime@outlook.com>"
