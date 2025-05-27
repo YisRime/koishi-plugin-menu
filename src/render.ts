@@ -16,6 +16,7 @@ interface Config {
   titleSize: number
   header?: string
   footer?: string
+  customCss?: string
 }
 
 /**
@@ -31,8 +32,9 @@ export class Render {
    */
   build(config: Config, commands: Command[], cmdName?: string): string {
     const css = this.style(config)
+    const customCss = config.customCss?.trim() || ''
     const body = this.content(config, commands, cmdName)
-    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style></head><body>${body}</body></html>`
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}${customCss ? '\n/* 自定义样式 */\n' + customCss : ''}</style></head><body>${body}</body></html>`
   }
 
   /**

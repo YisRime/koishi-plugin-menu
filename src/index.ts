@@ -71,6 +71,8 @@ export interface Config {
   bgColor: string
   /** 文本色 */
   textColor: string
+  /** 自定义CSS */
+  customCss?: string
 }
 
 export const Config: Schema<Config> = Schema.intersect([
@@ -92,6 +94,7 @@ export const Config: Schema<Config> = Schema.intersect([
     bgimg: Schema.string().description('背景图片'),
     header: Schema.string().role('textarea').description('页头HTML'),
     footer: Schema.string().role('textarea').description('页脚HTML'),
+    customCss: Schema.string().role('textarea').description('自定义CSS'),
   }).description('页面配置'),
   Schema.object({
     primary: Schema.string().description('主色调').role('color').default('#8b5cf6'),
