@@ -25,9 +25,7 @@ export class FileStore {
     const fileName = type === 'commands'
       ? (locale ? `commands-${locale}.json` : 'commands.json')
       : `${type}.json`
-    return type === 'commands'
-      ? join(this.baseDir, 'commands', fileName)
-      : join(this.baseDir, fileName)
+    return join(this.baseDir, fileName)
   }
 
   /**
@@ -79,7 +77,7 @@ export class FileStore {
    */
   resolve(path: string): string {
     if (!path || /^https?:\/\//.test(path)) return path || ''
-    const assetsPath = join(dirname(this.baseDir), 'assets', path)
+    const assetsPath = join(this.baseDir, path)
     return `file:///${assetsPath.replace(/\\/g, '/')}`
   }
 
@@ -91,7 +89,7 @@ export class FileStore {
   async check(filename: string): Promise<boolean> {
     if (!filename || /^https?:\/\//.test(filename)) return true
     try {
-      const assetsPath = join(dirname(this.baseDir), 'assets', filename)
+      const assetsPath = join(this.baseDir, filename)
       await promises.access(assetsPath)
       return true
     } catch {

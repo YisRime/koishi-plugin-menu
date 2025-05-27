@@ -50,9 +50,9 @@ export interface Config {
   /** 圆角大小，单位为像素 */
   radius: number
   /** 背景图片文件名或完整 URL 地址 */
-  background?: string
+  bgimg?: string
   /** 自定义字体的 URL 链接 */
-  fontUrl?: string
+  fontlink?: string
   /** 基础字体大小，单位为像素 */
   fontSize: number
   /** 标题字体大小倍数 */
@@ -82,14 +82,14 @@ export const Config: Schema<Config> = Schema.intersect([
     padding: Schema.number().description('边距(px)').min(0).default(16),
     radius: Schema.number().description('圆角(px)').min(0).default(12),
     fontSize: Schema.number().description('字体(px)').min(1).default(16),
-    titleSize: Schema.number().description('标题倍数').min(1).default(1.5),
-    fontUrl: Schema.string().description('字体链接(URL或assets下的文件名)'),
-    background: Schema.string().description('背景图片(URL或assets下的文件名)'),
-  }).description('界面配置'),
+    titleSize: Schema.number().description('标题倍数').min(1).default(1.5)
+  }).description('样式配置'),
   Schema.object({
-    header: Schema.string().role('textarea').description('页头 HTML 内容'),
-    footer: Schema.string().role('textarea').description('页脚 HTML 内容'),
-  }).description('页面内容'),
+    fontlink: Schema.string().description('字体链接'),
+    bgimg: Schema.string().description('背景图片'),
+    header: Schema.string().role('textarea').description('页头HTML'),
+    footer: Schema.string().role('textarea').description('页脚HTML'),
+  }).description('页面配置'),
   Schema.object({
     primary: Schema.string().description('主色调').role('color').default('#8b5cf6'),
     secondary: Schema.string().description('副色调').role('color').default('#38bdf8'),
@@ -151,8 +151,8 @@ export function apply(ctx: Context, config: Config) {
         if (!commands?.length) return cmd ? `找不到命令 ${cmd}` : '无可用命令'
         const renderConfig = {
           ...config,
-          fontUrl: config.fontUrl ? files.resolve(config.fontUrl) : undefined,
-          bgImage: config.background ? files.resolve(config.background) : undefined,
+          font: config.fontlink ? files.resolve(config.fontlink) : undefined,
+          bgImage: config.bgimg ? files.resolve(config.bgimg) : undefined,
         }
         const html = render.build(renderConfig, commands, cmd)
         const buffer = await toImage(html)
