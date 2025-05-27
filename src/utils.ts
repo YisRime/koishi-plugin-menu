@@ -108,17 +108,18 @@ export class DataStore {
    * @param cmdName - 命令名称，为空时返回所有命令
    * @param session - 会话对象
    * @param locale - 语言代码
+   * @param showHidden - 是否显示隐藏的命令和选项
    * @returns Promise<any[]> 命令数据数组
    */
-  async getCommands(cmdName: string, session: any, locale: string) {
+  async getCommands(cmdName: string, session: any, locale: string, showHidden = false) {
     let allCommands = await this.files.read<any[]>('commands', locale)
     if (!allCommands) {
       allCommands = await this.extract.getAll(session, locale)
       await this.files.write('commands', allCommands, locale)
     }
     // 应用过滤
-    let commands = await this.extract.filterCommands(allCommands, session)
-    commands = commands.map(command => this.extract.filterCommandOptions(command, session))
+    let commands = await this.extract.filterCommands(allCommands, session, showHidden)
+    commands = commands.map(command => this.extract.filterCommandOptions(command, session, showHidden))
     if (!cmdName) return commands
     // 查找特定命令
     const found = commands.find(c => c.name === cmdName) ||
@@ -127,11 +128,11 @@ export class DataStore {
     // 尝试单独获取
     const single = await this.extract.getSingle(session, cmdName, locale)
     if (single) {
-      const filtered = await this.extract.filterCommands([single], session)
+      const filtered = await this.extract.filterCommands([single], session, showHidden)
       if (filtered.length) {
         allCommands.push(single)
         await this.files.write('commands', allCommands, locale)
-        return [this.extract.filterCommandOptions(filtered[0], session)]
+        return [this.extract.filterCommandOptions(filtered[0], session, showHidden)]
       }
     }
     return []

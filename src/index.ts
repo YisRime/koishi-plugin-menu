@@ -21,6 +21,20 @@ export const name = 'menu'
 export const inject = ['puppeteer']
 export const logger = new Logger('menu')
 
+export const usage = `
+<div style="border-radius: 10px; border: 1px solid #ddd; padding: 16px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+  <h2 style="margin-top: 0; color: #4a6ee0;">📌 插件说明</h2>
+  <p>📖 <strong>使用文档</strong>：请点击左上角的 <strong>插件主页</strong> 查看插件使用文档</p>
+  <p>🔍 <strong>更多插件</strong>：可访问 <a href="https://github.com/YisRime" style="color:#4a6ee0;text-decoration:none;">苡淞的 GitHub</a> 查看本人的所有插件</p>
+</div>
+
+<div style="border-radius: 10px; border: 1px solid #ddd; padding: 16px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+  <h2 style="margin-top: 0; color: #e0574a;">❤️ 支持与反馈</h2>
+  <p>🌟 喜欢这个插件？请在 <a href="https://github.com/YisRime" style="color:#e0574a;text-decoration:none;">GitHub</a> 上给我一个 Star！</p>
+  <p>🐛 遇到问题？请通过 <strong>Issues</strong> 提交反馈，或加入 QQ 群 <a href="https://qm.qq.com/q/PdLMx9Jowq" style="color:#e0574a;text-decoration:none;"><strong>855571375</strong></a> 进行交流</p>
+</div>
+`
+
 /**
  * 插件配置接口
  */
@@ -67,14 +81,12 @@ export const Config: Schema<Config> = Schema.intersect([
     ]).default('file').description('布局数据源'),
   }).description('数据源配置'),
   Schema.object({
-    padding: Schema.number().description('边距(px)').min(8).max(32).default(16),
-    radius: Schema.number().description('圆角(px)').min(0).max(24).default(12),
-  }).description('布局配置'),
-  Schema.object({
-    background: Schema.string().description('背景图片(文件名或URL)'),
+    padding: Schema.number().description('边距(px)').min(0).default(16),
+    radius: Schema.number().description('圆角(px)').min(0).default(12),
+    fontSize: Schema.number().description('字体(px)').min(1).default(16),
+    titleSize: Schema.number().description('标题倍数').min(1).default(1.5),
     fontUrl: Schema.string().description('字体链接(URL)'),
-    fontSize: Schema.number().description('字体大小(px)').min(10).max(20).default(14),
-    titleSize: Schema.number().description('标题字体倍数').min(1).max(3).step(0.1).default(1.4),
+    background: Schema.string().description('背景图片(文件名或URL)'),
   }).description('界面配置'),
   Schema.object({
     header: Schema.string().role('textarea').description('页头 HTML 内容'),
@@ -101,10 +113,10 @@ export function apply(ctx: Context, config: Config) {
 
   // 扩展命令配置架构
   ctx.schema.extend('command', Schema.object({
-    hidden: Schema.computed(Schema.boolean()).description('在帮助中隐藏指令').default(false),
+    hidden: Schema.computed(Schema.boolean()).description('在菜单中隐藏指令').default(false),
   }), 900)
   ctx.schema.extend('command-option', Schema.object({
-    hidden: Schema.computed(Schema.boolean()).description('在帮助中隐藏选项').default(false),
+    hidden: Schema.computed(Schema.boolean()).description('在菜单中隐藏选项').default(false),
   }), 900)
 
   /**
@@ -128,19 +140,21 @@ export function apply(ctx: Context, config: Config) {
   })
 
   // 注册命令
-  ctx.command('menu [cmd:string]', '显示指令帮助')
+  ctx.command('menu [cmd:string]', '显示指令菜单')
     .userFields(['authority'])
-    .action(async ({ session }, cmd) => {
+    .option('hidden', '-H  显示所有命令和选项')
+    .action(async ({ session, options }, cmd) => {
       try {
         const locale = extract.getLocale(session)
+        const showHidden = options.hidden
         // 获取命令数据
         let commands = config.cmdSrc === 'inline'
           ? (cmd ? await extract.getRelated(session, cmd, locale) : await extract.getAll(session, locale))
-          : await data.getCommands(cmd, session, locale)
+          : await data.getCommands(cmd, session, locale, showHidden)
         // 应用过滤
         if (config.cmdSrc === 'inline') {
-          commands = await extract.filterCommands(commands, session)
-          commands = commands.map(command => extract.filterCommandOptions(command, session))
+          commands = await extract.filterCommands(commands, session, showHidden)
+          commands = commands.map(command => extract.filterCommandOptions(command, session, showHidden))
         }
         // 获取布局并渲染
         const layout = config.layoutSrc === 'inline'

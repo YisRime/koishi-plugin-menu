@@ -165,16 +165,17 @@ export class Extract {
    * 过滤命令列表，应用权限和隐藏检查
    * @param commands - 命令列表
    * @param session - 会话对象
+   * @param showHidden - 是否显示隐藏的命令
    * @returns Promise<Command[]> 过滤后的命令列表
    */
-  async filterCommands(commands: Command[], session: any): Promise<Command[]> {
+  async filterCommands(commands: Command[], session: any, showHidden = false): Promise<Command[]> {
     const cache = new Map<string, Promise<boolean>>()
     const results = await Promise.all(commands.map(async (command) => {
-      if (this.isCommandHidden(command.name, session)) return null
+      if (!showHidden && this.isCommandHidden(command.name, session)) return null
       if (!await this.checkCommandPermission(command.name, session, cache)) return null
       // 递归过滤子命令
       if (command.subs?.length) {
-        const filteredSubs = await this.filterCommands(command.subs, session)
+        const filteredSubs = await this.filterCommands(command.subs, session, showHidden)
         return { ...command, subs: filteredSubs.length ? filteredSubs : undefined }
       }
       return command
@@ -186,12 +187,13 @@ export class Extract {
    * 过滤命令选项，应用权限和隐藏检查
    * @param command - 命令数据
    * @param session - 会话对象
+   * @param showHidden - 是否显示隐藏的选项
    * @returns Command 过滤后的命令数据
    */
-  filterCommandOptions(command: Command, session: any): Command {
+  filterCommandOptions(command: Command, session: any, showHidden = false): Command {
     const filteredOptions = command.options.filter(option => {
       if (!this.isOptionVisible(command.name, option.name, session)) return false
-      if (this.isOptionHidden(command.name, option.name, session)) return false
+      if (!showHidden && this.isOptionHidden(command.name, option.name, session)) return false
       return true
     })
     return { ...command, options: filteredOptions }
