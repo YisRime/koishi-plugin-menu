@@ -190,14 +190,14 @@ export function apply(ctx: Context, config: Config) {
       const commands = cmdName
         ? await extract.related(session, cmdName, locale)
         : await extract.all(session, locale)
-      return extract.filter(commands, session, showHidden || !!cmdName)
+      return extract.filter(commands, session, showHidden, !!cmdName)
     }
     let allCommands = await files.load<any[]>('commands', locale)
     if (!allCommands) {
       allCommands = await extract.all(session, locale)
       await files.save('commands', allCommands, locale)
     }
-    if (!cmdName) return extract.filter(allCommands, session, showHidden)
+    if (!cmdName) return extract.filter(allCommands, session, showHidden, false)
     let found = allCommands.find(c => c.name === cmdName) ||
                 allCommands.flatMap(c => c.subs || []).find(s => s.name === cmdName)
     if (!found) {
@@ -207,6 +207,6 @@ export function apply(ctx: Context, config: Config) {
         await files.save('commands', allCommands, locale)
       }
     }
-    return found ? extract.filter([found], session, showHidden || true) : []
+    return found ? extract.filter([found], session, showHidden, true) : []
   }
 }

@@ -92,7 +92,7 @@ export class Extract {
   async single(session: any, cmdName: string, locale = ''): Promise<Command | null> {
     this.setLocale(session, locale)
     const command = this.find(cmdName, session)
-    return command && !Array.isArray(command) ? this.build(command, session, session.user?.authority || 0, true) : null
+    return command && !Array.isArray(command) ? this.build(command, session, session.user?.authority || 0) : null
   }
 
   /**
@@ -114,14 +114,19 @@ export class Extract {
   }
 
   /**
-   * 过滤指令列表
+   * 过滤指令列表，统一处理所有隐藏逻辑
    * @param commands 指令列表
    * @param session 会话对象
-   * @param showHidden 是否显示隐藏指令，默认为 false
+   * @param showHidden 是否显示隐藏项
+   * @param isDetailView 是否为详情视图
    * @returns 过滤后的指令列表
    */
-  filter(commands: Command[], session: any, showHidden = false): Command[] {
-    return commands.filter(command => showHidden || !command.hidden)
+  filter(commands: Command[], session: any, showHidden = false, isDetailView = false): Command[] {
+    return commands.map(cmd => ({
+      ...cmd,
+      options: cmd.options.filter(opt => showHidden || !opt.hidden),
+      subs: cmd.subs?.filter(sub => showHidden || !sub.hidden)
+    })).filter(cmd => isDetailView || showHidden || !cmd.hidden)
   }
 
   /**
@@ -154,10 +159,9 @@ export class Extract {
    * @param command 原始指令对象
    * @param session 会话对象
    * @param userAuth 用户权限等级
-   * @param showHiddenOptions 是否显示隐藏选项，默认为 false
    * @returns 构建的指令对象的 Promise，如果权限不足则返回 null
    */
-  private async build(command: any, session: any, userAuth: number, showHiddenOptions = false): Promise<Command | null> {
+  private async build(command: any, session: any, userAuth: number): Promise<Command | null> {
     const cmdAuth = command?.config?.authority || 0
     if (userAuth < cmdAuth) return null
     const name = command?.name || ''
@@ -169,8 +173,8 @@ export class Extract {
       desc: this.cleanText(getText([`commands.${name}.description`, ''])),
       usage: this.cleanText(await this.getUsage(command, session, name)),
       examples: this.getExamples(command, getText, name),
-      options: this.buildOptions(command, session, userAuth, getText, name, showHiddenOptions),
-      subs: await this.buildSubCommands(command, session, userAuth, showHiddenOptions)
+      options: this.buildOptions(command, session, userAuth, getText, name),
+      subs: await this.buildSubCommands(command, session, userAuth)
     }
   }
 
@@ -221,18 +225,19 @@ export class Extract {
    * @param userAuth 用户权限等级
    * @param getText 获取文本的函数
    * @param cmdName 指令名称
-   * @param showHidden 是否显示隐藏选项，默认为 false
    * @returns 选项列表
    */
-  private buildOptions(command: any, session: any, userAuth: number, getText: Function, cmdName: string, showHidden = false): Option[] {
+  private buildOptions(command: any, session: any, userAuth: number, getText: Function, cmdName: string): Option[] {
     const options: Option[] = []
     const addOption = (option: any, name: string) => {
       if (!option || userAuth < (option?.authority || 0)) return
-      const hidden = session?.resolve(option?.hidden) || false
-      if (!showHidden && hidden) return
       const desc = getText(option?.descPath ?? [`commands.${cmdName}.options.${name}`, ''])
       if (desc || option?.syntax) {
-        options.push({ name, desc, syntax: option?.syntax || '', hidden, authority: option?.authority || 0 })
+        options.push({
+          name, desc, syntax: option?.syntax || '',
+          hidden: session?.resolve(option?.hidden) || false,
+          authority: option?.authority || 0
+        })
       }
     }
     Object.values(command?._options || {}).forEach((opt: any) => {
@@ -247,15 +252,14 @@ export class Extract {
    * @param command 指令对象
    * @param session 会话对象
    * @param userAuth 用户权限等级
-   * @param showHiddenOptions 是否显示隐藏选项，默认为 false
    * @returns 子指令列表的 Promise，如果没有子指令则返回 undefined
    */
-  private async buildSubCommands(command: any, session: any, userAuth: number, showHiddenOptions = false): Promise<Command[] | undefined> {
+  private async buildSubCommands(command: any, session: any, userAuth: number): Promise<Command[] | undefined> {
     if (!command?.children?.length) return undefined
     const subs = (await Promise.all(
       command.children
         .filter((sub: any) => sub?.ctx?.filter(session) && userAuth >= (sub?.config?.authority || 0))
-        .map((sub: any) => this.build(sub, session, userAuth, showHiddenOptions))
+        .map((sub: any) => this.build(sub, session, userAuth))
     )).filter(Boolean)
     return subs.length ? subs : undefined
   }
