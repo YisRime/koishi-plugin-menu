@@ -1,11 +1,15 @@
 import { dirname, join } from 'path'
+import { createHash } from 'crypto'
 import { promises } from 'fs'
 
 /**
  * 文件管理器类，处理菜单相关文件的读写操作
  */
 export class FileStore {
+  /** 基础目录路径，用于存储菜单相关文件 */
   private readonly baseDir: string
+  /** 缓存目录路径，用于存储生成的图片缓存 */
+  private readonly cacheDir: string
 
   /**
    * 创建文件存储实例
@@ -13,6 +17,7 @@ export class FileStore {
    */
   constructor(rootDir: string) {
     this.baseDir = join(rootDir, 'data/menu')
+    this.cacheDir = join(this.baseDir, 'cache')
   }
 
   /**
@@ -95,5 +100,54 @@ export class FileStore {
     } catch {
       return false
     }
+  }
+
+  /**
+   * 生成缓存键
+   * @param commands 命令列表
+   * @param config 渲染配置
+   * @param cmdName 命令名称
+   * @returns 缓存键字符串
+   */
+  generateCacheKey(commands: any[], config: any, cmdName?: string): string {
+    const prefix = cmdName?.replace(/[^a-zA-Z0-9\-_\.]/g, '_') || (commands.length === 1 ? commands[0].name.replace(/[^a-zA-Z0-9\-_\.]/g, '_') : 'menu')
+    const hash = createHash('md5').update(JSON.stringify({
+      commands: commands.map(cmd => ({ name: cmd.name, desc: cmd.desc, group: cmd.group, options: cmd.options?.length || 0, subs: cmd.subs?.length || 0 })),
+      config: { padding: config.padding, radius: config.radius, fontSize: config.fontSize, titleSize: config.titleSize, primary: config.primary, secondary: config.secondary, bgColor: config.bgColor, textColor: config.textColor, header: config.header, footer: config.footer }
+    })).digest('hex').substring(0, 12)
+    return `${prefix}_${hash}`
+  }
+
+  /**
+   * 获取缓存文件内容
+   * @param key 缓存键
+   * @returns 缓存文件的Buffer数据，如果不存在则返回null
+   */
+  async getCache(key: string): Promise<Buffer | null> {
+    try { return await promises.readFile(join(this.cacheDir, `${key}.png`)) } catch { return null }
+  }
+
+  /**
+   * 保存数据到缓存文件
+   * @param key 缓存键
+   * @param buffer 要保存的Buffer数据
+   */
+  async saveCache(key: string, buffer: Buffer): Promise<void> {
+    const path = join(this.cacheDir, `${key}.png`)
+    await promises.mkdir(dirname(path), { recursive: true })
+    await promises.writeFile(path, buffer)
+  }
+
+  /**
+   * 清除缓存文件
+   * @param cmdName 可选的命令名称，如果提供则只清除该命令相关的缓存，否则清除所有缓存
+   */
+  async clearCache(cmdName?: string): Promise<void> {
+    try {
+      const files = await promises.readdir(this.cacheDir).catch(() => [])
+      const pattern = cmdName?.replace(/[^a-zA-Z0-9\-_\.]/g, '_') || ''
+      await Promise.all(files.filter(f => f.endsWith('.png') && (pattern ? f.startsWith(pattern + '_') : true))
+        .map(f => promises.unlink(join(this.cacheDir, f)).catch(() => {})))
+    } catch {}
   }
 }

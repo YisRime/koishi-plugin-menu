@@ -45,6 +45,8 @@ export const usage = `
 export interface Config {
   /** 命令数据源类型 */
   source: 'file' | 'inline'
+  /** 是否启用缓存 */
+  enableCache: boolean
   /** 内边距大小，单位为像素 */
   padding: number
   /** 圆角大小，单位为像素 */
@@ -76,13 +78,14 @@ export const Config: Schema<Config> = Schema.intersect([
     source: Schema.union([
       Schema.const('file').description('本地配置'),
       Schema.const('inline').description('内存读取'),
-    ]).default('file').description('命令数据源'),
+    ]).description('命令数据源').default('inline'),
+    enableCache: Schema.boolean().description('启用图片缓存').default(true),
   }).description('数据源配置'),
   Schema.object({
     padding: Schema.number().description('边距(px)').min(0).default(16),
     radius: Schema.number().description('圆角(px)').min(0).default(12),
-    fontSize: Schema.number().description('字体(px)').min(1).default(16),
-    titleSize: Schema.number().description('标题倍数').min(1).default(1.5)
+    fontSize: Schema.number().description('字体(px)').min(1).default(24),
+    titleSize: Schema.number().description('标题倍数').min(1).default(2)
   }).description('样式配置'),
   Schema.object({
     fontlink: Schema.string().description('字体链接'),
@@ -144,18 +147,23 @@ export function apply(ctx: Context, config: Config) {
   ctx.command('menu [cmd:string]', '显示指令菜单')
     .userFields(['authority'])
     .option('hidden', '-H  显示所有命令和选项')
+    .option('clear', '-c  清理缓存并重新生成')
     .action(async ({ session, options }, cmd) => {
       try {
+        if (options.clear) await files.clearCache(cmd)
         const locale = extract.locale(session)
         const commands = await getCommands(cmd, session, locale, options.hidden)
         if (!commands?.length) return cmd ? `找不到命令 ${cmd}` : '无可用命令'
-        const renderConfig = {
-          ...config,
-          font: config.fontlink ? files.resolve(config.fontlink) : undefined,
-          bgImage: config.bgimg ? files.resolve(config.bgimg) : undefined,
+        const renderConfig = { ...config, fontUrl: config.fontlink ? files.resolve(config.fontlink) : undefined, bgImage: config.bgimg ? files.resolve(config.bgimg) : undefined }
+        const cacheKey = files.generateCacheKey(commands, renderConfig, cmd)
+        // 尝试使用缓存
+        if (config.enableCache && !options.clear) {
+          const cached = await files.getCache(cacheKey)
+          if (cached) return h.image(cached, 'image/png')
         }
         const html = render.build(renderConfig, commands, cmd)
         const buffer = await toImage(html)
+        if (config.enableCache) await files.saveCache(cacheKey, buffer)
         return h.image(buffer, 'image/png')
       } catch (error) {
         logger.error('渲染失败:', error)
