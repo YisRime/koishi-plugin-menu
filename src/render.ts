@@ -17,9 +17,6 @@ interface Config {
   header?: string
   footer?: string
   customCss?: string
-  cardWidth: number
-  cardHeight: number
-  gridColumns: number
 }
 
 /**
@@ -29,8 +26,8 @@ export class Render {
   /**
    * 构建完整的 HTML 页面
    * @param config 渲染配置
-   * @param commands 命令列表
-   * @param cmdName 指定命令名称
+   * @param commands 指令列表
+   * @param cmdName 指定指令名称
    * @returns 完整的 HTML 字符串
    */
   build(config: Config, commands: Command[], cmdName?: string): string {
@@ -46,7 +43,7 @@ export class Render {
    * @returns CSS 字符串
    */
   private style(config: Config): string {
-    const { fontUrl, bgImage, primary, secondary, bgColor, textColor, radius, padding, fontSize, titleSize, cardWidth, cardHeight, gridColumns } = config
+    const { fontUrl, bgImage, primary, secondary, bgColor, textColor, radius, padding, fontSize, titleSize } = config
     const bgStyle = bgImage
       ? `var(--bg) url('${bgImage}') center/cover`
       : `linear-gradient(135deg, ${primary}08 0%, ${secondary}06 50%, var(--bg) 100%)`
@@ -56,34 +53,36 @@ export class Render {
   --text-muted: ${textColor}99; --border: ${primary}20; --shadow: ${primary}10;
   --radius: ${radius}px; --spacing: ${padding}px; --gap: ${Math.max(padding * 0.6, 8)}px;
   --font: system-ui, sans-serif; --fs: ${fontSize}px; --title-scale: ${titleSize};
-  --card-width: ${cardWidth}px; --card-height: ${cardHeight}px; --grid-columns: ${gridColumns};
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font: var(--fs)/1.5 var(--font); color: var(--text); background: ${bgStyle}; padding: var(--spacing); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-.container { width: fit-content; background: rgba(255,255,255,0.95); border-radius: calc(var(--radius) * 1.2); overflow: hidden; box-shadow: 0 8px 32px var(--shadow); border: 1px solid var(--border); }
+.container { width: fit-content; max-width: 90vw; background: rgba(255,255,255,0.95); border-radius: calc(var(--radius) * 1.2); overflow: hidden; box-shadow: 0 8px 32px var(--shadow); border: 1px solid var(--border); }
 .header { background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%); color: white; padding: calc(var(--spacing) * 1.2); text-align: center; font-weight: 600; font-size: calc(var(--fs) * var(--title-scale)); }
-.content { padding: var(--gap); background: linear-gradient(135deg, rgba(248,250,252,0.5) 0%, rgba(255,255,255,0.8) 100%); width: fit-content; }
+.content { padding: var(--gap); background: linear-gradient(135deg, rgba(248,250,252,0.5) 0%, rgba(255,255,255,0.8) 100%); width: fit-content; max-width: inherit; }
 .group-section { margin-bottom: calc(var(--gap) * 1.5); }
 .group-section:last-child { margin-bottom: 0; }
 .group-title { font-weight: 600; font-size: calc(var(--fs) * 1.15); margin-bottom: var(--gap); padding-bottom: calc(var(--gap) * 0.4); border-bottom: 2px solid var(--border); background: linear-gradient(90deg, var(--primary), var(--secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-.commands-grid { display: grid; grid-template-columns: repeat(var(--grid-columns), var(--card-width)); gap: var(--gap); width: fit-content; }
-.command-card { background: rgba(255,255,255,0.9); border-radius: var(--radius); padding: var(--spacing); border: 1px solid var(--border); box-shadow: 0 2px 8px var(--shadow); position: relative; overflow: hidden; width: var(--card-width); height: var(--card-height); }
+.commands-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--gap); width: 100%; max-width: 1200px; }
+.command-card { background: rgba(255,255,255,0.9); border-radius: var(--radius); padding: var(--spacing); border: 1px solid var(--border); box-shadow: 0 2px 8px var(--shadow); position: relative; overflow: hidden; min-height: 100px; display: flex; flex-direction: column; }
+.command-card.detail-view { width: 100%; max-width: 800px; min-height: auto; margin: 0 auto; }
 .command-card::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, var(--primary) 0%, var(--secondary) 100%); }
 .command-name { font-weight: 600; font-size: calc(var(--fs) * 1.05); margin-bottom: calc(var(--spacing) * 0.4); background: linear-gradient(90deg, var(--primary), var(--secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-.command-desc { color: var(--text-muted); line-height: 1.4; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.command-desc { color: var(--text-muted); line-height: 1.4; flex: 1; }
+.command-card:not(.detail-view) .command-desc { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .command-details { display: grid; gap: calc(var(--spacing) * 0.6); margin-top: calc(var(--spacing) * 0.6); }
 .detail-section { background: rgba(248,250,252,0.7); border-radius: calc(var(--radius) * 0.6); padding: calc(var(--spacing) * 0.6); border: 1px solid var(--border); }
 .detail-title { font-weight: 600; font-size: calc(var(--fs) * 0.9); margin-bottom: calc(var(--spacing) * 0.4); color: var(--primary); }
 .detail-content { color: var(--text-muted); font-size: calc(var(--fs) * 0.85); line-height: 1.4; white-space: pre-wrap; }
 .footer { background: rgba(248,250,252,0.8); color: var(--text-muted); padding: calc(var(--spacing) * 0.6); text-align: center; font-size: calc(var(--fs) * 0.8); border-top: 1px solid var(--border); }
-@media (max-width: 480px) { body { padding: calc(var(--spacing) * 0.5); } .container { border-radius: var(--radius); } .commands-grid { grid-template-columns: repeat(auto-fit, minmax(var(--card-width), 1fr)); width: 100%; } .content { width: auto; } }`
+@media (max-width: 768px) { .commands-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); } }
+@media (max-width: 480px) { body { padding: calc(var(--spacing) * 0.5); } .container { border-radius: var(--radius); max-width: 95vw; } .commands-grid { grid-template-columns: 1fr; } .content { width: auto; } }`
   }
 
   /**
    * 生成页面主体内容
    * @param config 渲染配置
-   * @param commands 命令列表
-   * @param cmdName 指定命令名称
+   * @param commands 指令列表
+   * @param cmdName 指定指令名称
    * @returns HTML 主体字符串
    */
   private content(config: Config, commands: Command[], cmdName?: string): string {
@@ -94,9 +93,9 @@ body { font: var(--fs)/1.5 var(--font); color: var(--text); background: ${bgStyl
   }
 
   /**
-   * 构建命令列表视图
-   * @param commands 命令列表
-   * @returns 命令列表 HTML
+   * 构建指令列表视图
+   * @param commands 指令列表
+   * @returns 指令列表 HTML
    */
   private list(commands: Command[]): string {
     const groups = commands.reduce((acc, cmd) => {
@@ -120,10 +119,10 @@ body { font: var(--fs)/1.5 var(--font); color: var(--text); background: ${bgStyl
   }
 
   /**
-   * 构建命令详情视图
-   * @param commands 命令列表
-   * @param cmdName 命令名称
-   * @returns 命令详情 HTML
+   * 构建指令详情视图
+   * @param commands 指令列表
+   * @param cmdName 指令名称
+   * @returns 指令详情 HTML
    */
   private detail(commands: Command[], cmdName: string): string {
     const cmd = commands.find(c => c.name === cmdName) ||
@@ -131,12 +130,12 @@ body { font: var(--fs)/1.5 var(--font); color: var(--text); background: ${bgStyl
     const parts = [
       cmd.usage?.trim() && this.section('使用方法', cmd.usage),
       cmd.options?.length && this.section(`选项参数 (${cmd.options.length})`,
-        cmd.options.map(o => o.desc ? `${o.syntax || o.name}\n  ${o.desc}` : o.syntax || o.name).join('\n\n')),
+        cmd.options.map(o => o.desc ? `${o.syntax || o.name}\n  ${o.desc}` : o.syntax || o.name).join('\n')),
       cmd.examples?.trim() && this.section('使用示例', cmd.examples),
-      cmd.subs?.length && this.section(`子命令 (${cmd.subs.length})`,
+      cmd.subs?.length && this.section(`子指令 (${cmd.subs.length})`,
         cmd.subs.map(s => `${s.name} - ${s.desc || '无描述'}`).join('\n'))
     ].filter(Boolean).join('')
-    return `<div class="command-card">
+    return `<div class="command-card detail-view">
       <div class="command-name">${cmd.name}</div>
       <div class="command-desc">${cmd.desc || '无描述'}</div>
       <div class="command-details">${parts}</div>

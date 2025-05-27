@@ -104,16 +104,16 @@ export class FileStore {
 
   /**
    * 生成缓存键
-   * @param commands 命令列表
+   * @param commands 指令列表
    * @param config 渲染配置
-   * @param cmdName 命令名称
+   * @param cmdName 指令名称
    * @returns 缓存键字符串
    */
   generateCacheKey(commands: any[], config: any, cmdName?: string): string {
     const prefix = cmdName?.replace(/[^a-zA-Z0-9\-_\.]/g, '_') || (commands.length === 1 ? commands[0].name.replace(/[^a-zA-Z0-9\-_\.]/g, '_') : 'menu')
     const hash = createHash('md5').update(JSON.stringify({
       commands: commands.map(cmd => ({ name: cmd.name, desc: cmd.desc, group: cmd.group, options: cmd.options?.length || 0, subs: cmd.subs?.length || 0 })),
-      config: { padding: config.padding, radius: config.radius, fontSize: config.fontSize, titleSize: config.titleSize, primary: config.primary, secondary: config.secondary, bgColor: config.bgColor, textColor: config.textColor, header: config.header, footer: config.footer, cardWidth: config.cardWidth, cardHeight: config.cardHeight, gridColumns: config.gridColumns }
+      config: { padding: config.padding, radius: config.radius, fontSize: config.fontSize, titleSize: config.titleSize, primary: config.primary, secondary: config.secondary, bgColor: config.bgColor, textColor: config.textColor, header: config.header, footer: config.footer }
     })).digest('hex').substring(0, 12)
     return `${prefix}_${hash}`
   }
@@ -140,7 +140,7 @@ export class FileStore {
 
   /**
    * 清除缓存文件
-   * @param cmdName 可选的命令名称，如果提供则只清除该命令相关的缓存，否则清除所有缓存
+   * @param cmdName 可选的指令名称，如果提供则只清除该指令相关的缓存，否则清除所有缓存
    */
   async clearCache(cmdName?: string): Promise<void> {
     try {

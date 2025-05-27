@@ -9,7 +9,7 @@ declare module 'koishi' {
     interface Config {
       /** 在菜单中隐藏指令 */
       hidden?: Computed<boolean>
-      /** 命令分组名称 */
+      /** 指令分组名称 */
       group?: Computed<string>
     }
   }
@@ -43,7 +43,7 @@ export const usage = `
  * 插件配置接口
  */
 export interface Config {
-  /** 命令数据源类型 */
+  /** 指令数据源类型 */
   source: 'file' | 'inline'
   /** 是否启用缓存 */
   enableCache: boolean
@@ -73,12 +73,6 @@ export interface Config {
   textColor: string
   /** 自定义CSS */
   customCss?: string
-  /** 命令卡片宽度，单位为像素 */
-  cardWidth: number
-  /** 命令卡片高度，单位为像素 */
-  cardHeight: number
-  /** 网格列数 */
-  gridColumns: number
 }
 
 export const Config: Schema<Config> = Schema.intersect([
@@ -86,17 +80,14 @@ export const Config: Schema<Config> = Schema.intersect([
     source: Schema.union([
       Schema.const('file').description('本地配置'),
       Schema.const('inline').description('内存读取'),
-    ]).description('命令数据源').default('inline'),
+    ]).description('指令数据源').default('inline'),
     enableCache: Schema.boolean().description('启用图片缓存').default(true),
   }).description('数据源配置'),
   Schema.object({
     padding: Schema.number().description('边距(px)').min(0).default(16),
     radius: Schema.number().description('圆角(px)').min(0).default(12),
     fontSize: Schema.number().description('字体(px)').min(1).default(24),
-    titleSize: Schema.number().description('标题倍数').min(1).default(2),
-    cardWidth: Schema.number().description('卡片宽度(px)').min(100).default(200),
-    cardHeight: Schema.number().description('卡片高度(px)').min(50).default(120),
-    gridColumns: Schema.number().description('网格列数').min(1).default(4)
+    titleSize: Schema.number().description('标题倍数').min(1).default(2)
   }).description('样式配置'),
   Schema.object({
     fontlink: Schema.string().description('字体链接'),
@@ -123,10 +114,10 @@ export function apply(ctx: Context, config: Config) {
   const render = new Render()
   const extract = new Extract(ctx)
 
-  // 扩展命令配置架构
+  // 扩展指令配置架构
   ctx.schema.extend('command', Schema.object({
     hidden: Schema.computed(Schema.boolean()).description('在菜单中隐藏指令').default(false),
-    group: Schema.computed(Schema.string()).description('命令分组名称').default('其它'),
+    group: Schema.computed(Schema.string()).description('指令分组名称').default('其它'),
   }), 900)
   ctx.schema.extend('command-option', Schema.object({
     hidden: Schema.computed(Schema.boolean()).description('在菜单中隐藏选项').default(false),
@@ -148,24 +139,24 @@ export function apply(ctx: Context, config: Config) {
     }
   }
 
-  // 命令执行前检查并处理无 action 命令
+  // 指令执行前检查并处理无 action 指令
   ctx.before('command/execute', (argv) => {
     const { command, session } = argv
     if (command['_actions'].length || !session.app.$commander.get('menu')) return
     return session.execute({ name: 'menu', args: [command.name] })
   })
 
-  // 注册命令
+  // 注册指令
   ctx.command('menu [cmd:string]', '显示指令菜单')
     .userFields(['authority'])
-    .option('hidden', '-H  显示所有命令和选项')
+    .option('hidden', '-H  显示所有指令和选项')
     .option('clear', '-c  清理缓存并重新生成')
     .action(async ({ session, options }, cmd) => {
       try {
         if (options.clear) await files.clearCache(cmd)
         const locale = extract.locale(session)
         const commands = await getCommands(cmd, session, locale, options.hidden)
-        if (!commands?.length) return cmd ? `找不到命令 ${cmd}` : '无可用命令'
+        if (!commands?.length) return `找不到指令 ${cmd}`
         const renderConfig = { ...config, fontUrl: config.fontlink ? files.resolve(config.fontlink) : undefined, bgImage: config.bgimg ? files.resolve(config.bgimg) : undefined }
         const cacheKey = files.generateCacheKey(commands, renderConfig, cmd)
         // 尝试使用缓存
@@ -184,19 +175,19 @@ export function apply(ctx: Context, config: Config) {
     })
 
   /**
-   * 获取命令数据
-   * @param cmdName 命令名称
+   * 获取指令数据
+   * @param cmdName 指令名称
    * @param session 会话对象
    * @param locale 语言代码
    * @param showHidden 是否显示隐藏项
-   * @returns 命令列表
+   * @returns 指令列表
    */
   async function getCommands(cmdName: string, session: any, locale: string, showHidden = false) {
     if (config.source === 'inline') {
       const commands = cmdName
         ? await extract.related(session, cmdName, locale)
         : await extract.all(session, locale)
-      return extract.filter(commands, session, showHidden)
+      return extract.filter(commands, session, showHidden || !!cmdName)
     }
     let allCommands = await files.load<any[]>('commands', locale)
     if (!allCommands) {
@@ -213,6 +204,6 @@ export function apply(ctx: Context, config: Config) {
         await files.save('commands', allCommands, locale)
       }
     }
-    return found ? extract.filter([found], session, showHidden) : []
+    return found ? extract.filter([found], session, showHidden || true) : []
   }
 }
