@@ -113,7 +113,7 @@ export class FileStore {
     const prefix = cmdName?.replace(/[^a-zA-Z0-9\-_\.]/g, '_') || (commands.length === 1 ? commands[0].name.replace(/[^a-zA-Z0-9\-_\.]/g, '_') : 'menu')
     const hash = createHash('md5').update(JSON.stringify({
       commands: commands.map(cmd => ({ name: cmd.name, desc: cmd.desc, group: cmd.group, options: cmd.options?.length || 0, subs: cmd.subs?.length || 0 })),
-      config: { padding: config.padding, radius: config.radius, fontSize: config.fontSize, titleSize: config.titleSize, primary: config.primary, secondary: config.secondary, bgColor: config.bgColor, textColor: config.textColor, header: config.header, footer: config.footer }
+      config: { padding: config.padding, radius: config.radius, fontSize: config.fontSize, titleSize: config.titleSize, primary: config.primary, secondary: config.secondary, bgColor: config.bgColor, textColor: config.textColor, header: config.header, footer: config.footer, cardWidth: config.cardWidth, cardHeight: config.cardHeight, gridColumns: config.gridColumns }
     })).digest('hex').substring(0, 12)
     return `${prefix}_${hash}`
   }

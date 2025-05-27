@@ -73,6 +73,12 @@ export interface Config {
   textColor: string
   /** 自定义CSS */
   customCss?: string
+  /** 命令卡片宽度，单位为像素 */
+  cardWidth: number
+  /** 命令卡片高度，单位为像素 */
+  cardHeight: number
+  /** 网格列数 */
+  gridColumns: number
 }
 
 export const Config: Schema<Config> = Schema.intersect([
@@ -87,7 +93,10 @@ export const Config: Schema<Config> = Schema.intersect([
     padding: Schema.number().description('边距(px)').min(0).default(16),
     radius: Schema.number().description('圆角(px)').min(0).default(12),
     fontSize: Schema.number().description('字体(px)').min(1).default(24),
-    titleSize: Schema.number().description('标题倍数').min(1).default(2)
+    titleSize: Schema.number().description('标题倍数').min(1).default(2),
+    cardWidth: Schema.number().description('卡片宽度(px)').min(100).default(200),
+    cardHeight: Schema.number().description('卡片高度(px)').min(50).default(120),
+    gridColumns: Schema.number().description('网格列数').min(1).default(4)
   }).description('样式配置'),
   Schema.object({
     fontlink: Schema.string().description('字体链接'),
