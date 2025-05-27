@@ -73,6 +73,8 @@ export interface Config {
   textColor: string
   /** 自定义CSS */
   customCss?: string
+  /** 毛玻璃模糊强度，0表示关闭 */
+  glassBlur: number
 }
 
 export const Config: Schema<Config> = Schema.intersect([
@@ -86,6 +88,7 @@ export const Config: Schema<Config> = Schema.intersect([
   Schema.object({
     padding: Schema.number().description('边距(px)').min(0).default(16),
     radius: Schema.number().description('圆角(px)').min(0).default(12),
+    glassBlur: Schema.number().description('毛玻璃强度(px)').min(0).default(0),
     fontSize: Schema.number().description('字体(px)').min(1).default(24),
     titleSize: Schema.number().description('标题倍数').min(1).default(2)
   }).description('样式配置'),
