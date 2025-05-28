@@ -141,7 +141,7 @@ export function apply(ctx: Context, config: Config) {
     .option('clear', '-c  清理缓存并重新生成')
     .action(async ({ session, options }, cmd) => {
       try {
-        if (options.clear) await files.clearCache(cmd)
+        if (options.clear && config.enableCache) await files.clearCache(cmd)
         const locale = extract.locale(session)
         const commands = await getCommands(cmd, session, locale, options.hidden)
         if (cmd && commands.length === 0) return cmd ? `找不到指令 ${cmd}` : '暂无可用指令'
@@ -150,16 +150,21 @@ export function apply(ctx: Context, config: Config) {
           fontUrl: config.fontlink ? files.resolve(config.fontlink) : undefined,
           bgImage: config.bgimg ? files.resolve(config.bgimg) : undefined
         }
-        const cacheKey = files.generateCacheKey(commands, renderConfig, cmd)
-        // 尝试使用缓存
-        if (config.enableCache && !options.clear) {
-          const cached = await files.getCache(cacheKey)
-          if (cached) return h.image(cached, 'image/png')
+        if (config.enableCache) {
+          const cacheKey = files.generateCacheKey(commands, renderConfig, cmd)
+          if (!options.clear) {
+            const cached = await files.getCache(cacheKey)
+            if (cached) return h.image(cached, 'image/png')
+          }
+          const html = render.build(renderConfig, commands, cmd)
+          const buffer = await toImage(html)
+          await files.saveCache(cacheKey, buffer)
+          return h.image(buffer, 'image/png')
+        } else {
+          const html = render.build(renderConfig, commands, cmd)
+          const buffer = await toImage(html)
+          return h.image(buffer, 'image/png')
         }
-        const html = render.build(renderConfig, commands, cmd)
-        const buffer = await toImage(html)
-        if (config.enableCache) await files.saveCache(cacheKey, buffer)
-        return h.image(buffer, 'image/png')
       } catch (error) {
         logger.error('渲染失败:', error)
         return '渲染菜单失败'
@@ -194,9 +199,9 @@ export function apply(ctx: Context, config: Config) {
     try {
       if (config.source === 'inline') {
         const commands = cmdName
-          ? await extract.related(session, cmdName, locale)
-          : await extract.all(session, locale)
-        return extract.filter(commands, showHidden, !!cmdName)
+          ? await extract.related(session, cmdName, locale, showHidden)
+          : await extract.all(session, locale, showHidden)
+        return commands
       }
       let allCommands = await files.load<any[]>('commands', locale)
       if (!allCommands) {
