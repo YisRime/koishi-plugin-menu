@@ -12,9 +12,9 @@ interface Option {
 }
 
 /**
- * 指令名称配置接口
+ * 指令名称项接口
  */
-interface NameConfig {
+interface NameItem {
   name: string
   enabled: boolean
   isDefault?: boolean
@@ -25,7 +25,7 @@ interface NameConfig {
  */
 export interface Command {
   group: string
-  name: NameConfig
+  name: NameItem[]
   hidden: boolean
   authority: number
   desc: string
@@ -59,13 +59,13 @@ export class Extract {
    * @returns 指令列表
    */
   async all(session: any, locale = ''): Promise<Command[]> {
-    if (!session || !this.ctx.$commander) return []
+    if (!this.ctx.$commander) return []
     this.setLocale(session, locale)
     const userAuth = session.user?.authority || 0
     const commandList = this.ctx.$commander._commandList?.filter(cmd =>
       !cmd?.parent && cmd?.ctx?.filter?.(session) && userAuth >= this.getAuthority(cmd)) || []
     const commands = (await Promise.all(commandList.map(cmd => this.build(cmd, session, userAuth)))).filter(Boolean)
-    return commands.sort((a, b) => a.name.name.localeCompare(b.name.name))
+    return commands.sort((a, b) => a.name[0].name.localeCompare(b.name[0].name))
   }
 
   /**
@@ -76,7 +76,7 @@ export class Extract {
    * @returns 指令对象或null
    */
   async single(session: any, cmdName: string, locale = ''): Promise<Command | null> {
-    if (!session || !cmdName) return null
+    if (!cmdName) return null
     this.setLocale(session, locale)
     const command = this.find(cmdName, session)
     return command && !Array.isArray(command) ? this.build(command, session, session.user?.authority || 0) : null
@@ -95,7 +95,7 @@ export class Extract {
     const commands = [target]
     if (cmdName.includes('.')) {
       const parent = await this.single(session, cmdName.split('.')[0], locale)
-      if (parent && !commands.some(cmd => cmd.name.name === parent.name.name)) commands.unshift(parent)
+      if (parent && !commands.some(cmd => cmd.name[0].name === parent.name[0].name)) commands.unshift(parent)
     }
     return commands
   }
@@ -147,16 +147,32 @@ export class Extract {
   /**
    * 处理指令名称配置
    * @param command 指令对象
-   * @returns 名称配置
+   * @returns 名称配置数组
    */
-  private processNameConfig(command: any): NameConfig {
-    if (!command) return { name: '', enabled: false }
+  private processNameConfig(command: any): NameItem[] {
+    if (!command) return []
     const { aliases } = this.getEffectiveData(command)
     const aliasEntries = Object.entries(aliases || {})
-    if (!aliasEntries.length) return { name: command.name || '',  enabled: true,  isDefault: true }
-    const enabledAlias = aliasEntries.find(([_, config]) => (config as any)?.filter !== false)
-    const defaultName = enabledAlias?.[0] || aliasEntries[0]?.[0] || command.name
-    return { name: defaultName, enabled: (enabledAlias?.[1] as any)?.filter !== false, isDefault: true }
+    if (!aliasEntries.length) return [{ name: command.name || '', enabled: true, isDefault: true }]
+    const nameItems: NameItem[] = []
+    let hasDefault = false
+    // 处理所有别名
+    aliasEntries.forEach(([alias, config]) => {
+      const enabled = (config as any)?.filter !== false
+      const isDefault = !hasDefault && enabled
+      if (isDefault) hasDefault = true
+      nameItems.push({ name: alias, enabled, isDefault })
+    })
+    // 如果没有默认名称，将第一个启用的设为默认
+    if (!hasDefault) {
+      const firstEnabled = nameItems.find(item => item.enabled)
+      if (firstEnabled) firstEnabled.isDefault = true
+    }
+    return nameItems.sort((a, b) => {
+      if (a.isDefault) return -1
+      if (b.isDefault) return 1
+      return a.name.localeCompare(b.name)
+    })
   }
 
   /**

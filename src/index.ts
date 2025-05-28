@@ -144,7 +144,7 @@ export function apply(ctx: Context, config: Config) {
         if (options.clear) await files.clearCache(cmd)
         const locale = extract.locale(session)
         const commands = await getCommands(cmd, session, locale, options.hidden)
-        if (!commands?.length) return cmd ? `找不到指令 ${cmd}` : '暂无可用指令'
+        if (cmd && commands.length === 0) return cmd ? `找不到指令 ${cmd}` : '暂无可用指令'
         const renderConfig = {
           ...config,
           fontUrl: config.fontlink ? files.resolve(config.fontlink) : undefined,
@@ -233,15 +233,17 @@ export function apply(ctx: Context, config: Config) {
     if (!Array.isArray(commands) || !nameOrAlias?.trim()) return null
     // 查找主指令
     for (const cmd of commands) {
-      if (!cmd || typeof cmd !== 'object') continue
-      if (cmd.name?.name === nameOrAlias && cmd.name?.enabled) return cmd
+      if (!cmd || typeof cmd !== 'object' || !cmd.name) continue
+      // 检查主指令的所有名称
+      if (Array.isArray(cmd.name)) for (const nameItem of cmd.name) if (nameItem?.name === nameOrAlias && nameItem?.enabled) return cmd
     }
     // 查找子指令
     for (const cmd of commands) {
       if (!cmd?.subs || !Array.isArray(cmd.subs)) continue
       for (const sub of cmd.subs) {
-        if (!sub || typeof sub !== 'object') continue
-        if (sub.name?.name === nameOrAlias && sub.name?.enabled) return sub
+        if (!sub || typeof sub !== 'object' || !sub.name) continue
+        // 检查子指令的所有名称
+        if (Array.isArray(sub.name)) for (const nameItem of sub.name) if (nameItem?.name === nameOrAlias && nameItem?.enabled) return sub
       }
     }
     return null

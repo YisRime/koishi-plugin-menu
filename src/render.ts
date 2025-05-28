@@ -57,7 +57,9 @@ export class Render {
 *{box-sizing:border-box}
 body{font:var(--font-size)/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:var(--text);background:${bodyBg};padding:var(--padding);display:flex;align-items:flex-start;justify-content:center;min-height:100vh}
 .container{background:${containerBg};${bgImage && glassBlur > 0 ? glassEffect : ''}border-radius:calc(var(--radius)*1.5);padding:calc(var(--padding)*1.2);${bgImage ? '' : `box-shadow:0 20px 40px ${primary.replace(/[\d.]+\)$/, '0.15)')},0 8px 32px ${primary.replace(/[\d.]+\)$/, '0.1)')};border:1px solid ${primary.replace(/[\d.]+\)$/, '0.2)')};`}display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:calc(var(--padding)*0.8);width:100%;max-width:925px}
+.container.detail-view{display:flex;flex-direction:column;max-width:800px;width:auto;min-width:400px}
 .header,.group-title{grid-column:1/-1;text-align:center;font-weight:700;background:linear-gradient(135deg,var(--primary),var(--secondary));color:white;border-radius:var(--radius);position:relative;overflow:hidden}
+.detail-view .header{grid-column:unset}
 .header::before,.group-title::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(135deg,transparent 0%,${primary.replace(/[\d.]+\)$/, '0.1)')} 50%,transparent 100%);pointer-events:none}
 .header{font-size:var(--title-size);padding:calc(var(--padding)*1.5)}
 .group-title{font-size:calc(var(--font-size)*1.25);padding:calc(var(--padding)*0.8) calc(var(--padding)*1.2);margin-top:calc(var(--padding)*0.6)}
@@ -65,6 +67,9 @@ body{font:var(--font-size)/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Robot
 .command-card,.detail-card{background:${cardBg};${glassEffect}border-radius:var(--radius);border:1px solid ${primary.replace(/[\d.]+\)$/, '0.2)')};position:relative;overflow:hidden;transition:all 0.3s cubic-bezier(0.4,0,0.2,1)}
 .command-card:hover,.detail-card:hover{transform:translateY(-2px);box-shadow:0 12px 24px ${primary.replace(/[\d.]+\)$/, '0.15)')},0 4px 16px ${primary.replace(/[\d.]+\)$/, '0.1)')};border-color:${primary.replace(/[\d.]+\)$/, '0.3)')}}
 .command-card.main-command{grid-column:1/-1}
+.detail-view .command-card.main-command{grid-column:unset;margin-bottom:calc(var(--padding)*0.8)}
+.detail-view .detail-card{margin-bottom:calc(var(--padding)*0.8);width:100%;min-width:300px;max-width:100%}
+.detail-view .detail-card:last-child{margin-bottom:0}
 .command-card::before,.detail-card::before{content:'';position:absolute;top:0;left:0;width:4px;height:100%;background:linear-gradient(180deg,var(--primary),var(--secondary))}
 .detail-card::before{width:3px}
 .command-card-content,.detail-card-content{padding:calc(var(--padding)*1.1);margin-left:4px;background:${contentBg};${glassEffect}}
@@ -77,10 +82,11 @@ body{font:var(--font-size)/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Robot
 .detail-content{font-size:calc(var(--font-size)*0.88);white-space:pre-wrap}
 .command-card:not(.main-command) .command-desc{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .footer{grid-column:1/-1;text-align:center;font-size:calc(var(--font-size)*0.85);background:${cardBg};${glassEffect}color:${textColor.replace(/[\d.]+\)$/, '0.7)')};padding:calc(var(--padding)*0.8);border:1px solid ${primary.replace(/[\d.]+\)$/, '0.1)')};border-radius:var(--radius)}
-@media(min-width:1200px){.container{grid-template-columns:repeat(auto-fit,minmax(211px,1fr));max-width:1056px}}
-@media(max-width:1199px)and(min-width:900px){.container{grid-template-columns:repeat(auto-fit,minmax(198px,1fr))}}
-@media(max-width:899px)and(min-width:600px){.container{grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:calc(var(--padding)*0.6)}}
-@media(max-width:599px){body{padding:calc(var(--padding)*0.6)}.container{grid-template-columns:1fr;padding:calc(var(--padding)*0.8);gap:calc(var(--padding)*0.5)}.header{font-size:calc(var(--title-size)*0.9)}.group-title{font-size:calc(var(--font-size)*1.1)}.command-card-content,.detail-card-content{padding:calc(var(--padding)*0.9)}}`
+.detail-view .footer{grid-column:unset;margin-top:calc(var(--padding)*0.8)}
+@media(min-width:1200px){.container:not(.detail-view){grid-template-columns:repeat(auto-fit,minmax(211px,1fr));max-width:1056px}}
+@media(max-width:1199px)and(min-width:900px){.container:not(.detail-view){grid-template-columns:repeat(auto-fit,minmax(198px,1fr))}}
+@media(max-width:899px)and(min-width:600px){.container:not(.detail-view){grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:calc(var(--padding)*0.6)}}
+@media(max-width:599px){body{padding:calc(var(--padding)*0.6)}.container:not(.detail-view){grid-template-columns:1fr;padding:calc(var(--padding)*0.8);gap:calc(var(--padding)*0.5)}.container.detail-view{min-width:unset;padding:calc(var(--padding)*0.8)}.header{font-size:calc(var(--title-size)*0.9)}.group-title{font-size:calc(var(--font-size)*1.1)}.command-card-content,.detail-card-content{padding:calc(var(--padding)*0.9)}.detail-view .detail-card{min-width:unset}}`
   }
 
   /**
@@ -94,7 +100,8 @@ body{font:var(--font-size)/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Robot
     const body = cmdName ? this.buildDetail(commands, cmdName) : this.buildList(commands)
     const header = config.header ? `<div class="header">${config.header}</div>` : ''
     const footer = config.footer ? `<div class="footer">${config.footer}</div>` : ''
-    return `<div class="container">${header}${body}${footer}</div>`
+    const containerClass = cmdName ? 'container detail-view' : 'container'
+    return `<div class="${containerClass}">${header}${body}${footer}</div>`
   }
 
   /**
@@ -113,7 +120,8 @@ body{font:var(--font-size)/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Robot
     groups.forEach((cmds, name) => {
       elements.push(`<div class="group-title">${name} (${cmds.length})</div>`)
       cmds.forEach(cmd => {
-        elements.push(`<div class="command-card"><div class="command-card-content"><div class="command-name">${cmd.name.name}</div><div class="command-desc">${cmd.desc || '无描述'}</div></div></div>`)
+        const primaryName = cmd.name.find(n => n.isDefault)?.name || cmd.name[0]?.name || ''
+        elements.push(`<div class="command-card"><div class="command-card-content"><div class="command-name">${primaryName}</div><div class="command-desc">${cmd.desc || '无描述'}</div></div></div>`)
       })
     })
     return elements.join('')
@@ -127,15 +135,15 @@ body{font:var(--font-size)/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Robot
    */
   private buildDetail(commands: Command[], cmdName: string): string {
     const cmd = this.findCommand(commands, cmdName)
-    if (!cmd) return '<div class="command-card main-command"><div class="command-card-content"><div class="command-name">未找到指令</div></div></div>'
+    if (!cmd) return `<div class="command-card main-command"><div class="command-card-content"><div class="command-name">指令未找到</div><div class="command-desc">未找到指令 "${cmdName}"</div></div></div>`
     const elements: string[] = []
-    elements.push(`<div class="command-card main-command"><div class="command-card-content"><div class="command-name">${cmd.name.name}</div><div class="command-desc">${cmd.desc || '无描述'}</div></div></div>`)
-    // 名称状态卡片
-    if (!cmd.name.enabled || cmd.name.isDefault) {
-      const parts = []
-      if (!cmd.name.enabled) parts.push('状态: 已禁用')
-      if (cmd.name.isDefault) parts.push('类型: 默认名称')
-      if (parts.length) elements.push(this.buildDetailCard('名称信息', parts.join('\n')))
+    const primaryName = cmd.name.find(n => n.isDefault)?.name || cmd.name[0]?.name || ''
+    elements.push(`<div class="command-card main-command"><div class="command-card-content"><div class="command-name">${primaryName}</div><div class="command-desc">${cmd.desc || '无描述'}</div></div></div>`)
+    // 别名卡片
+    const aliases = cmd.name.filter(n => !n.isDefault && n.enabled).map(n => n.name)
+    if (aliases.length > 0) {
+      const aliasesText = aliases.join(', ')
+      elements.push(this.buildDetailCard('指令别名', aliasesText))
     }
     // 其他详情卡片
     if (cmd.usage) elements.push(this.buildDetailCard('使用方法', cmd.usage))
@@ -145,7 +153,7 @@ body{font:var(--font-size)/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Robot
     }
     if (cmd.examples) elements.push(this.buildDetailCard('使用示例', cmd.examples))
     if (cmd.subs?.length) {
-      const content = cmd.subs.map(s => `${s.name.name} - ${s.desc || '无描述'}`).join('\n')
+      const content = cmd.subs.map(s => `${s.name.find(n => n.isDefault)?.name || s.name[0]?.name || ''} - ${s.desc || '无描述'}`).join('\n')
       elements.push(this.buildDetailCard(`子指令 (${cmd.subs.length})`, content))
     }
     return elements.join('')
@@ -158,11 +166,17 @@ body{font:var(--font-size)/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Robot
    * @returns 找到的指令或null
    */
   private findCommand(commands: Command[], nameOrAlias: string): Command | null {
+    if (!commands?.length || !nameOrAlias) return null
     for (const cmd of commands) {
-      if (cmd.name.name === nameOrAlias && cmd.name.enabled) return cmd
-      if (cmd.subs) {
-        const sub = cmd.subs.find(s => s.name.name === nameOrAlias && s.name.enabled)
-        if (sub) return sub
+      if (!cmd || !cmd.name) continue
+      // 检查所有名称
+      for (const nameItem of cmd.name) if (nameItem.name === nameOrAlias && nameItem.enabled) return cmd
+      // 检查子指令
+      if (cmd.subs && Array.isArray(cmd.subs)) {
+        for (const sub of cmd.subs) {
+          if (!sub || !sub.name) continue
+          for (const nameItem of sub.name) if (nameItem.name === nameOrAlias && nameItem.enabled) return sub
+        }
       }
     }
     return null
