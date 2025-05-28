@@ -100,15 +100,16 @@ export const Config: Schema<Config> = Schema.intersect([
     customCss: Schema.string().role('textarea').description('自定义CSS'),
   }).description('页面配置'),
   Schema.object({
-    primary: Schema.string().description('主色调').role('color').default('#8b5cf6'),
-    secondary: Schema.string().description('副色调').role('color').default('#38bdf8'),
-    bgColor: Schema.string().description('背景色').role('color').default('#fefefe'),
-    textColor: Schema.string().description('文本色').role('color').default('#64748b'),
+    primary: Schema.string().description('主色调').role('color').default('rgba(139, 92, 246, 1)'),
+    secondary: Schema.string().description('副色调').role('color').default('rgba(56, 189, 248, 1)'),
+    bgColor: Schema.string().description('背景色').role('color').default('rgba(254, 254, 254, 1)'),
+    textColor: Schema.string().description('文本色').role('color').default('rgba(100, 116, 139, 1)'),
   }).description('颜色配置')
 ])
 
 /**
- * 插件主函数
+ * 菜单插件主函数
+ * @description 生成美观的指令菜单页面，支持缓存和多种自定义样式
  * @param ctx Koishi 应用上下文对象
  * @param config 插件配置对象
  */
@@ -128,20 +129,8 @@ export function apply(ctx: Context, config: Config) {
 
   // 指令执行前检查
   ctx.before('command/execute', (argv) => {
-    const { command, session, source } = argv
+    const { command, session } = argv
     if (command['_actions'].length || !session.app.$commander.get('menu')) return
-
-    // 检查是否通过禁用的别名访问
-    const commandsManager = ctx.get('commands')
-    if (commandsManager?.snapshots) {
-      const snapshot = commandsManager.snapshots[command.name]
-      if (snapshot?.override?.aliases && source) {
-        const aliasName = source.trim().split(/\s+/)[0]
-        const aliasConfig = snapshot.override.aliases[aliasName]
-        if (aliasConfig && aliasConfig.filter === false) return
-      }
-    }
-
     return session.execute({ name: 'menu', args: [command.name] })
   })
 
@@ -155,24 +144,18 @@ export function apply(ctx: Context, config: Config) {
         if (options.clear) await files.clearCache(cmd)
         const locale = extract.locale(session)
         const commands = await getCommands(cmd, session, locale, options.hidden)
-        if (!commands?.length) return `找不到指令 ${cmd}`
-
+        if (!commands?.length) return cmd ? `找不到指令 ${cmd}` : '暂无可用指令'
         const renderConfig = {
           ...config,
           fontUrl: config.fontlink ? files.resolve(config.fontlink) : undefined,
           bgImage: config.bgimg ? files.resolve(config.bgimg) : undefined
         }
-
-        // 生成包含commands修改状态的缓存键
-        const commandsHash = files.generateCommandsHash(ctx)
-        const cacheKey = files.generateCacheKey(commands, renderConfig, cmd, commandsHash)
-
+        const cacheKey = files.generateCacheKey(commands, renderConfig, cmd)
         // 尝试使用缓存
         if (config.enableCache && !options.clear) {
           const cached = await files.getCache(cacheKey)
           if (cached) return h.image(cached, 'image/png')
         }
-
         const html = render.build(renderConfig, commands, cmd)
         const buffer = await toImage(html)
         if (config.enableCache) await files.saveCache(cacheKey, buffer)
@@ -183,6 +166,11 @@ export function apply(ctx: Context, config: Config) {
       }
     })
 
+  /**
+   * 将HTML转换为图片
+   * @param html HTML字符串
+   * @returns 图片Buffer
+   */
   const toImage = async (html: string): Promise<Buffer> => {
     const page = await ctx.puppeteer.page()
     try {
@@ -203,36 +191,36 @@ export function apply(ctx: Context, config: Config) {
    * @returns 指令列表
    */
   async function getCommands(cmdName: string, session: any, locale: string, showHidden = false) {
-    if (config.source === 'inline') {
-      const commands = cmdName
-        ? await extract.related(session, cmdName, locale)
-        : await extract.all(session, locale)
-      return extract.filter(commands, session, showHidden, !!cmdName)
-    }
-
-    let allCommands = await files.load<any[]>('commands', locale)
-    if (!allCommands) {
-      allCommands = await extract.all(session, locale)
-      await files.save('commands', allCommands, locale)
-    }
-
-    if (!cmdName) return extract.filter(allCommands, session, showHidden, false)
-
-    // 优化的查找逻辑
-    let found = findCommandByNameOrAlias(allCommands, cmdName)
-
-    if (!found) {
-      found = await extract.single(session, cmdName, locale)
-      if (found) {
-        const exists = allCommands.some(c => c.name === found.name)
-        if (!exists) {
-          allCommands.push(found)
-          await files.save('commands', allCommands, locale)
+    try {
+      if (config.source === 'inline') {
+        const commands = cmdName
+          ? await extract.related(session, cmdName, locale)
+          : await extract.all(session, locale)
+        return extract.filter(commands, showHidden, !!cmdName)
+      }
+      let allCommands = await files.load<any[]>('commands', locale)
+      if (!allCommands) {
+        allCommands = await extract.all(session, locale)
+        if (allCommands?.length) await files.save('commands', allCommands, locale)
+      }
+      if (!cmdName) return extract.filter(allCommands || [], showHidden, false)
+      let found = findCommand(allCommands || [], cmdName)
+      if (!found) {
+        found = await extract.single(session, cmdName, locale)
+        if (found) {
+          const exists = (allCommands || []).some(c => c?.name === found.name)
+          if (!exists) {
+            allCommands = allCommands || []
+            allCommands.push(found)
+            await files.save('commands', allCommands, locale)
+          }
         }
       }
+      return found ? extract.filter([found], showHidden, true) : []
+    } catch (error) {
+      logger.error('获取指令数据失败:', error)
+      return []
     }
-
-    return found ? extract.filter([found], session, showHidden, true) : []
   }
 
   /**
@@ -241,16 +229,21 @@ export function apply(ctx: Context, config: Config) {
    * @param nameOrAlias 指令名称或别名
    * @returns 找到的指令或null
    */
-  function findCommandByNameOrAlias(commands: any[], nameOrAlias: string): any | null {
-    // 统一的查找逻辑
-    const findInList = (list: any[]) => list.find(c =>
-      c.name === nameOrAlias ||
-      c.aliases?.some((alias: any) =>
-        (typeof alias === 'string' ? alias === nameOrAlias :
-         alias.name === nameOrAlias && alias.enabled)
-      )
-    )
-
-    return findInList(commands) || findInList(commands.flatMap(c => c.subs || [])) || null
+  function findCommand(commands: any[], nameOrAlias: string): any | null {
+    if (!Array.isArray(commands) || !nameOrAlias?.trim()) return null
+    // 查找主指令
+    for (const cmd of commands) {
+      if (!cmd || typeof cmd !== 'object') continue
+      if (cmd.name?.name === nameOrAlias && cmd.name?.enabled) return cmd
+    }
+    // 查找子指令
+    for (const cmd of commands) {
+      if (!cmd?.subs || !Array.isArray(cmd.subs)) continue
+      for (const sub of cmd.subs) {
+        if (!sub || typeof sub !== 'object') continue
+        if (sub.name?.name === nameOrAlias && sub.name?.enabled) return sub
+      }
+    }
+    return null
   }
 }
