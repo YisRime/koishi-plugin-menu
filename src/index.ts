@@ -102,7 +102,7 @@ export const Config: Schema<Config> = Schema.intersect([
   Schema.object({
     primary: Schema.string().description('主色调').role('color').default('rgba(139, 92, 246, 1)'),
     secondary: Schema.string().description('副色调').role('color').default('rgba(56, 189, 248, 1)'),
-    bgColor: Schema.string().description('背景色').role('color').default('rgba(254, 254, 254, 1)'),
+    bgColor: Schema.string().description('背景色').role('color').default('rgba(255, 255, 255, 1)'),
     textColor: Schema.string().description('文本色').role('color').default('rgba(100, 116, 139, 1)'),
   }).description('颜色配置')
 ])

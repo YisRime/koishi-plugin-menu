@@ -45,80 +45,42 @@ export class Render {
    */
   private buildCSS(config: Config): string {
     const { fontUrl, bgImage, primary, secondary, bgColor, textColor, radius, padding, fontSize, titleSize, glassBlur } = config
-    const bodyBg = bgImage ? `url('${bgImage}') center/cover fixed, linear-gradient(135deg, ${primary}1a, ${secondary}0d)` : `linear-gradient(135deg, ${primary}26 0%, ${secondary}1a 50%, ${bgColor} 100%)`
-    const containerBg = bgImage ? 'transparent' : (glassBlur > 0 ? `${bgColor}d9` : `${bgColor}f2`)
-    const glassEffect = glassBlur > 0 ? `backdrop-filter: blur(${glassBlur}px); -webkit-backdrop-filter: blur(${glassBlur}px);` : ''
-
+    const bodyBg = bgImage
+      ? `url('${bgImage}') center/cover fixed, linear-gradient(135deg, ${primary.replace(/[\d.]+\)$/, '0.1)')}, ${secondary.replace(/[\d.]+\)$/, '0.05)')})`
+      : `linear-gradient(135deg, ${primary.replace(/[\d.]+\)$/, '0.15)')} 0%, ${secondary.replace(/[\d.]+\)$/, '0.1)')} 50%, ${bgColor} 100%)`
+    const containerBg = bgImage ? 'transparent' : (glassBlur > 0 ? bgColor.replace(/[\d.]+\)$/, '0.85)') : bgColor.replace(/[\d.]+\)$/, '0.95)'))
+    const cardBg = glassBlur > 0 ? bgColor.replace(/[\d.]+\)$/, '0.8)') : bgColor.replace(/[\d.]+\)$/, '0.95)')
+    const contentBg = glassBlur > 0 ? bgColor.replace(/[\d.]+\)$/, '0.7)') : bgColor.replace(/[\d.]+\)$/, '0.95)')
+    const glassEffect = glassBlur > 0 ? `backdrop-filter:blur(${glassBlur}px);-webkit-backdrop-filter:blur(${glassBlur}px);` : ''
     return `${fontUrl ? `@import url('${fontUrl}');` : ''}
-:root {
-  --primary: ${primary}; --secondary: ${secondary}; --bg: ${bgColor}; --text: ${textColor};
-  --radius: ${radius}px; --padding: ${padding}px; --font-size: ${fontSize}px; --title-size: ${fontSize * titleSize}px;
-}
-* { box-sizing: border-box; }
-body {
-  font: var(--font-size)/1.6 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  color: var(--text); background: ${bodyBg}; padding: var(--padding);
-  display: flex; align-items: flex-start; justify-content: center;
-}
-.container {
-  background: ${containerBg}; ${bgImage && glassBlur > 0 ? glassEffect : ''}
-  border-radius: calc(var(--radius) * 1.5); padding: calc(var(--padding) * 1.2);
-  ${bgImage ? '' : `box-shadow: 0 20px 40px ${primary}26; border: 1px solid ${primary}33;`}
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: calc(var(--padding) * 0.8); width: 100%;
-}
-.header, .group-title {
-  grid-column: 1 / -1; text-align: center; font-weight: 700;
-  background: linear-gradient(135deg, var(--primary), var(--secondary));
-  color: white; border-radius: var(--radius);
-}
-.header { font-size: var(--title-size); padding: calc(var(--padding) * 1.5); }
-.group-title { font-size: calc(var(--font-size) * 1.25); padding: calc(var(--padding) * 0.8) calc(var(--padding) * 1.2); margin-top: calc(var(--padding) * 0.6); }
-.group-title:first-child { margin-top: 0; }
-.command-card, .detail-card {
-  background: ${glassBlur > 0 ? `${bgColor}cc` : `${bgColor}f2`}; ${glassEffect}
-  border-radius: var(--radius); border: 1px solid ${primary}33;
-  position: relative; overflow: hidden;
-}
-.command-card.main-command { grid-column: 1 / -1; }
-.command-card::before, .detail-card::before {
-  content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%;
-  background: linear-gradient(180deg, var(--primary), var(--secondary));
-}
-.detail-card::before { width: 3px; }
-.command-card-content, .detail-card-content {
-  padding: calc(var(--padding) * 1.1); margin-left: 4px;
-  background: ${glassBlur > 0 ? `${bgColor}b3` : `${bgColor}f2`}; ${glassEffect}
-}
-.detail-card-content { margin-left: 3px; padding: var(--padding); }
-.command-name, .detail-title {
-  font-weight: 700; margin-bottom: calc(var(--padding) * 0.5);
-  background: linear-gradient(90deg, var(--primary), var(--secondary));
-  -webkit-background-clip: text; color: transparent;
-}
-.command-name { font-size: calc(var(--font-size) * 1.1); }
-.detail-title { font-size: calc(var(--font-size) * 1.05); }
-.command-desc, .detail-content {
-  color: ${textColor}cc; line-height: 1.5;
-}
-.command-desc { font-size: calc(var(--font-size) * 0.9); }
-.detail-content { font-size: calc(var(--font-size) * 0.88); white-space: pre-wrap; }
-.command-card:not(.main-command) .command-desc {
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
-}
-.footer {
-  grid-column: 1 / -1; text-align: center; font-size: calc(var(--font-size) * 0.85);
-  background: ${glassBlur > 0 ? `${bgColor}cc` : `${bgColor}f2`}; ${glassEffect}
-  color: ${textColor}b3; padding: calc(var(--padding) * 0.8);
-  border: 1px solid ${primary}1a; border-radius: var(--radius);
-}
-@media (max-width: 768px) { .container { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); } }
-@media (max-width: 480px) {
-  body { padding: calc(var(--padding) * 0.6); }
-  .container { grid-template-columns: 1fr; padding: calc(var(--padding) * 0.8); }
-  .header, .footer, .group-title { white-space: normal; }
-}`
-
+:root{--primary:${primary};--secondary:${secondary};--bg:${bgColor};--text:${textColor};--radius:${radius}px;--padding:${padding}px;--font-size:${fontSize}px;--title-size:${fontSize * titleSize}px}
+*{box-sizing:border-box}
+body{font:var(--font-size)/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:var(--text);background:${bodyBg};padding:var(--padding);display:flex;align-items:flex-start;justify-content:center;min-height:100vh}
+.container{background:${containerBg};${bgImage && glassBlur > 0 ? glassEffect : ''}border-radius:calc(var(--radius)*1.5);padding:calc(var(--padding)*1.2);${bgImage ? '' : `box-shadow:0 20px 40px ${primary.replace(/[\d.]+\)$/, '0.15)')},0 8px 32px ${primary.replace(/[\d.]+\)$/, '0.1)')};border:1px solid ${primary.replace(/[\d.]+\)$/, '0.2)')};`}display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:calc(var(--padding)*0.8);width:100%;max-width:925px}
+.header,.group-title{grid-column:1/-1;text-align:center;font-weight:700;background:linear-gradient(135deg,var(--primary),var(--secondary));color:white;border-radius:var(--radius);position:relative;overflow:hidden}
+.header::before,.group-title::before{content:'';position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(135deg,transparent 0%,${primary.replace(/[\d.]+\)$/, '0.1)')} 50%,transparent 100%);pointer-events:none}
+.header{font-size:var(--title-size);padding:calc(var(--padding)*1.5)}
+.group-title{font-size:calc(var(--font-size)*1.25);padding:calc(var(--padding)*0.8) calc(var(--padding)*1.2);margin-top:calc(var(--padding)*0.6)}
+.group-title:first-child{margin-top:0}
+.command-card,.detail-card{background:${cardBg};${glassEffect}border-radius:var(--radius);border:1px solid ${primary.replace(/[\d.]+\)$/, '0.2)')};position:relative;overflow:hidden;transition:all 0.3s cubic-bezier(0.4,0,0.2,1)}
+.command-card:hover,.detail-card:hover{transform:translateY(-2px);box-shadow:0 12px 24px ${primary.replace(/[\d.]+\)$/, '0.15)')},0 4px 16px ${primary.replace(/[\d.]+\)$/, '0.1)')};border-color:${primary.replace(/[\d.]+\)$/, '0.3)')}}
+.command-card.main-command{grid-column:1/-1}
+.command-card::before,.detail-card::before{content:'';position:absolute;top:0;left:0;width:4px;height:100%;background:linear-gradient(180deg,var(--primary),var(--secondary))}
+.detail-card::before{width:3px}
+.command-card-content,.detail-card-content{padding:calc(var(--padding)*1.1);margin-left:4px;background:${contentBg};${glassEffect}}
+.detail-card-content{margin-left:3px;padding:var(--padding)}
+.command-name,.detail-title{font-weight:700;margin-bottom:calc(var(--padding)*0.5);background:linear-gradient(90deg,var(--primary),var(--secondary));-webkit-background-clip:text;background-clip:text;color:transparent;display:inline-block}
+.command-name{font-size:calc(var(--font-size)*1.1)}
+.detail-title{font-size:calc(var(--font-size)*1.05)}
+.command-desc,.detail-content{color:${textColor.replace(/[\d.]+\)$/, '0.8)')};line-height:1.5}
+.command-desc{font-size:calc(var(--font-size)*0.9)}
+.detail-content{font-size:calc(var(--font-size)*0.88);white-space:pre-wrap}
+.command-card:not(.main-command) .command-desc{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.footer{grid-column:1/-1;text-align:center;font-size:calc(var(--font-size)*0.85);background:${cardBg};${glassEffect}color:${textColor.replace(/[\d.]+\)$/, '0.7)')};padding:calc(var(--padding)*0.8);border:1px solid ${primary.replace(/[\d.]+\)$/, '0.1)')};border-radius:var(--radius)}
+@media(min-width:1200px){.container{grid-template-columns:repeat(auto-fit,minmax(211px,1fr));max-width:1056px}}
+@media(max-width:1199px)and(min-width:900px){.container{grid-template-columns:repeat(auto-fit,minmax(198px,1fr))}}
+@media(max-width:899px)and(min-width:600px){.container{grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:calc(var(--padding)*0.6)}}
+@media(max-width:599px){body{padding:calc(var(--padding)*0.6)}.container{grid-template-columns:1fr;padding:calc(var(--padding)*0.8);gap:calc(var(--padding)*0.5)}.header{font-size:calc(var(--title-size)*0.9)}.group-title{font-size:calc(var(--font-size)*1.1)}.command-card-content,.detail-card-content{padding:calc(var(--padding)*0.9)}}`
   }
 
   /**
