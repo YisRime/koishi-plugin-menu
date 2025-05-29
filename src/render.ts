@@ -94,10 +94,11 @@ body{font:var(--font-size)/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Robot
    * @param config 渲染配置
    * @param commands 指令列表
    * @param cmdName 可选的指令名称
+   * @param findCommand 查找指令的函数
    * @returns HTML内容字符串
    */
-  private buildContent(config: Config, commands: Command[], cmdName?: string): string {
-    const body = cmdName ? this.buildDetail(commands, cmdName) : this.buildList(commands)
+  private buildContent(config: Config, commands: Command[], cmdName?: string, findCommand?: (commands: any[], nameOrAlias: string) => any | null): string {
+    const body = cmdName && findCommand ? this.buildDetail(commands, cmdName, findCommand) : this.buildList(commands)
     const header = config.header ? `<div class="header">${config.header}</div>` : ''
     const footer = config.footer ? `<div class="footer">${config.footer}</div>` : ''
     const containerClass = cmdName ? 'container detail-view' : 'container'
@@ -131,10 +132,11 @@ body{font:var(--font-size)/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Robot
    * 构建指令详情视图
    * @param commands 指令列表
    * @param cmdName 指令名称
+   * @param findCommand 查找指令的函数
    * @returns HTML字符串
    */
-  private buildDetail(commands: Command[], cmdName: string): string {
-    const cmd = this.findCommand(commands, cmdName)
+  buildDetail(commands: Command[], cmdName: string, findCommand: (commands: any[], nameOrAlias: string) => any | null): string {
+    const cmd = findCommand(commands, cmdName)
     if (!cmd) return `<div class="command-card main-command"><div class="command-card-content"><div class="command-name">指令未找到</div><div class="command-desc">未找到指令 "${cmdName}"</div></div></div>`
     const elements: string[] = []
     const primaryName = cmd.name.find(n => n.isDefault)?.name || cmd.name[0]?.name || ''
@@ -157,29 +159,6 @@ body{font:var(--font-size)/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Robot
       elements.push(this.buildDetailCard(`子指令 (${cmd.subs.length})`, content))
     }
     return elements.join('')
-  }
-
-  /**
-   * 查找指令
-   * @param commands 指令列表
-   * @param nameOrAlias 指令名称或别名
-   * @returns 找到的指令或null
-   */
-  private findCommand(commands: Command[], nameOrAlias: string): Command | null {
-    if (!commands?.length || !nameOrAlias) return null
-    for (const cmd of commands) {
-      if (!cmd || !cmd.name) continue
-      // 检查所有名称
-      for (const nameItem of cmd.name) if (nameItem.name === nameOrAlias && nameItem.enabled) return cmd
-      // 检查子指令
-      if (cmd.subs && Array.isArray(cmd.subs)) {
-        for (const sub of cmd.subs) {
-          if (!sub || !sub.name) continue
-          for (const nameItem of sub.name) if (nameItem.name === nameOrAlias && nameItem.enabled) return sub
-        }
-      }
-    }
-    return null
   }
 
   /**
