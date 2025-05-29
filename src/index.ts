@@ -108,32 +108,6 @@ export const Config: Schema<Config> = Schema.intersect([
 ])
 
 /**
- * 通过名称或别名查找指令
- * @param commands 指令列表
- * @param nameOrAlias 指令名称或别名
- * @returns 找到的指令或null
- */
-function findCommand(commands: any[], nameOrAlias: string): any | null {
-  if (!Array.isArray(commands) || !nameOrAlias?.trim()) return null
-  // 查找主指令
-  for (const cmd of commands) {
-    if (!cmd || typeof cmd !== 'object' || !cmd.name) continue
-    // 检查主指令的所有名称
-    if (Array.isArray(cmd.name)) for (const nameItem of cmd.name) if (nameItem?.name === nameOrAlias && nameItem?.enabled) return cmd
-  }
-  // 查找子指令
-  for (const cmd of commands) {
-    if (!cmd?.subs || !Array.isArray(cmd.subs)) continue
-    for (const sub of cmd.subs) {
-      if (!sub || typeof sub !== 'object' || !sub.name) continue
-      // 检查子指令的所有名称
-      if (Array.isArray(sub.name)) for (const nameItem of sub.name) if (nameItem?.name === nameOrAlias && nameItem?.enabled) return sub
-    }
-  }
-  return null
-}
-
-/**
  * 菜单插件主函数
  * @description 生成美观的指令菜单页面，支持缓存和多种自定义样式
  * @param ctx Koishi 应用上下文对象
@@ -167,7 +141,7 @@ export function apply(ctx: Context, config: Config) {
     .option('clear', '-c  清理缓存并重新生成')
     .action(async ({ session, options }, cmd) => {
       try {
-        if (options.clear) await files.clearCache(cmd)
+        if (config.enableCache && options.clear) await files.clearCache(cmd)
         const locale = extract.locale(session)
         const commands = await getCommands(cmd, session, locale, options.hidden)
         if (cmd && commands.length === 0) return cmd ? `找不到指令 ${cmd}` : '暂无可用指令'
@@ -176,18 +150,24 @@ export function apply(ctx: Context, config: Config) {
           fontUrl: config.fontlink ? files.resolve(config.fontlink) : undefined,
           bgImage: config.bgimg ? files.resolve(config.bgimg) : undefined
         }
-        if (config.enableCache && !options.clear) {
-          const cacheKey = files.generateCacheKey(commands, renderConfig, cmd)
-          const cached = await files.getCache(cacheKey)
-          if (cached) return h.image(cached, 'image/png')
-        }
-        const html = render.build(renderConfig, commands, cmd)
-        const buffer = await toImage(html)
         if (config.enableCache) {
           const cacheKey = files.generateCacheKey(commands, renderConfig, cmd)
+          // 尝试使用缓存
+          if (!options.clear) {
+            const cached = await files.getCache(cacheKey)
+            if (cached) return h.image(cached, 'image/png')
+          }
+          // 生成新图片并保存缓存
+          const html = render.build(renderConfig, commands, cmd)
+          const buffer = await toImage(html)
           await files.saveCache(cacheKey, buffer)
+          return h.image(buffer, 'image/png')
+        } else {
+          // 不启用缓存时直接生成图片
+          const html = render.build(renderConfig, commands, cmd)
+          const buffer = await toImage(html)
+          return h.image(buffer, 'image/png')
         }
-        return h.image(buffer, 'image/png')
       } catch (error) {
         logger.error('渲染失败:', error)
         return '渲染菜单失败'
@@ -249,5 +229,29 @@ export function apply(ctx: Context, config: Config) {
       logger.error('获取指令数据失败:', error)
       return []
     }
+  }
+
+  /**
+   * 通过名称或别名查找指令
+   * @param commands 指令列表
+   * @param nameOrAlias 指令名称或别名
+   * @returns 找到的指令或null
+   */
+  function findCommand(commands: any[], nameOrAlias: string): any | null {
+    if (!Array.isArray(commands) || !nameOrAlias?.trim()) return null
+    // 查找主指令和子指令
+    for (const cmd of commands) {
+      if (!cmd || typeof cmd !== 'object' || !cmd.name) continue
+      // 检查主指令的所有名称
+      if (Array.isArray(cmd.name)) for (const nameItem of cmd.name) if (nameItem?.name === nameOrAlias && nameItem?.enabled) return cmd
+      // 检查子指令
+      if (cmd.subs && Array.isArray(cmd.subs)) {
+        for (const sub of cmd.subs) {
+          if (!sub || typeof sub !== 'object' || !sub.name) continue
+          if (Array.isArray(sub.name)) for (const nameItem of sub.name) if (nameItem?.name === nameOrAlias && nameItem?.enabled) return sub
+        }
+      }
+    }
+    return null
   }
 }
