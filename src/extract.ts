@@ -163,11 +163,6 @@ export class Extract {
       if (isDefault) hasDefault = true
       nameItems.push({ name: alias, enabled, isDefault })
     })
-    // 如果没有默认名称，将第一个启用的设为默认
-    if (!hasDefault) {
-      const firstEnabled = nameItems.find(item => item.enabled)
-      if (firstEnabled) firstEnabled.isDefault = true
-    }
     return nameItems.sort((a, b) => {
       if (a.isDefault) return -1
       if (b.isDefault) return 1
