@@ -6,6 +6,7 @@ import { Command } from './extract'
 interface Config {
   fontUrl?: string
   bgImage?: string
+  bgSize?: 'cover' | 'contain' | 'stretch' | 'auto'
   primary: string
   secondary: string
   bgColor: string
@@ -44,10 +45,19 @@ export class Render {
    * @returns CSS样式字符串
    */
   private buildCSS(config: Config): string {
-    const { fontUrl, bgImage, primary, secondary, bgColor, textColor, radius, padding, fontSize, titleSize, glassBlur } = config
+    const { fontUrl, bgImage, bgSize, primary, secondary, bgColor, textColor, radius, padding, fontSize, titleSize, glassBlur } = config
+
+    let bgSizeValue: string;
+    if (bgSize === 'stretch') {
+      bgSizeValue = '100% 100%';
+    } else {
+      bgSizeValue = bgSize || 'cover';
+    }
+
     const bodyBg = bgImage
-      ? `url('${bgImage}') center/cover fixed, linear-gradient(135deg, ${primary.replace(/[\d.]+\)$/, '0.1)')}, ${secondary.replace(/[\d.]+\)$/, '0.05)')})`
+      ? `url('${bgImage}') center/${bgSizeValue}, linear-gradient(135deg, ${primary.replace(/[\d.]+\)$/, '0.1)')}, ${secondary.replace(/[\d.]+\)$/, '0.05)')})`
       : `linear-gradient(135deg, ${primary.replace(/[\d.]+\)$/, '0.15)')} 0%, ${secondary.replace(/[\d.]+\)$/, '0.1)')} 50%, ${bgColor} 100%)`
+
     const containerBg = bgImage ? 'transparent' : (glassBlur > 0 ? bgColor.replace(/[\d.]+\)$/, '0.85)') : bgColor.replace(/[\d.]+\)$/, '0.95)'))
     const cardBg = glassBlur > 0 ? bgColor.replace(/[\d.]+\)$/, '0.8)') : bgColor.replace(/[\d.]+\)$/, '0.95)')
     const contentBg = glassBlur > 0 ? bgColor.replace(/[\d.]+\)$/, '0.7)') : bgColor.replace(/[\d.]+\)$/, '0.95)')

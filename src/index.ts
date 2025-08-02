@@ -53,6 +53,8 @@ export interface Config {
   radius: number
   /** 背景图片文件名或完整 URL 地址 */
   bgimg?: string
+  /** 背景图片的覆盖方式 */
+  bgSize: 'cover' | 'contain' | 'stretch' | 'auto'
   /** 自定义字体的 URL 链接 */
   fontlink?: string
   /** 基础字体大小，单位为像素 */
@@ -95,6 +97,12 @@ export const Config: Schema<Config> = Schema.intersect([
   Schema.object({
     fontlink: Schema.string().description('字体链接'),
     bgimg: Schema.string().description('背景图片'),
+    bgSize: Schema.union([
+      Schema.const('cover').description('覆盖'),
+      Schema.const('contain').description('包含'),
+      Schema.const('stretch').description('拉伸'),
+      Schema.const('auto').description('自动'),
+    ]).description('覆盖方式').default('cover'),
     header: Schema.string().role('textarea').description('页头HTML'),
     footer: Schema.string().role('textarea').description('页脚HTML'),
     customCss: Schema.string().role('textarea').description('自定义CSS'),
