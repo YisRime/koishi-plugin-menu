@@ -176,6 +176,7 @@ body{font:var(--font-size)/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Robot
    * @returns HTML字符串
    */
   private buildDetailCard(title: string, content: string): string {
-    return `<div class="detail-card"><div class="detail-card-content"><div class="detail-title">${title}</div><div class="detail-content">${content}</div></div></div>`
+    const escapedContent = content.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    return `<div class="detail-card"><div class="detail-card-content"><div class="detail-title">${title}</div><div class="detail-content">${escapedContent}</div></div></div>`
   }
 }
